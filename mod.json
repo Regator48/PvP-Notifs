@@ -1,9 +1,10 @@
 {
-	"name": "pvpnotifs",
-	"displayName": "PvP notifs (JohnTingVer)",
-	"author":"Xelo",
-	"description": "Alerts you to enemy tech progression and unit production",
-	"version": "0.1",
-	"minGameVersion": 136,
-	"hidden": true
+    "name": "PvP-Alerts",
+    "displayName": "PvP Alerts",
+    "author": "Xelo",
+    "description": "PvP alerts, enemy production tracking, tech tree alerts, erekir trackers, /sync",
+    "version": "1.0.0",
+    "minGameVersion": 158,
+    "java": false,
+    "hidden": true
 }

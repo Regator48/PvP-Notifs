@@ -1,13 +1,9 @@
-importPackage(Packages.arc.input);
-importPackage(Packages.arc.util.pooling);
-
 const jot = require("jotfunction");
 
 global.alerts = {};
 var lastUnlockTable = null;
 var lastUnlockLayout = null;
 
-const schemNumber = 30;
 function popup(intable) {
     var table = new Table(Tex.button);
     table.update(() => {
@@ -18,7 +14,6 @@ function popup(intable) {
         }
     });
     table.margin(12);
-
     table.add(intable).padRight(8);
     table.pack();
 
@@ -26,7 +21,6 @@ function popup(intable) {
     container.top().add(table);
     container.setTranslation(0, table.getPrefHeight());
     container.actions(Actions.translateBy(0, -table.getPrefHeight(), 1.0, Interp.fade), Actions.delay(2.5),
-        //nesting actions() calls is necessary so the right prefHeight() is used
         Actions.run(() => container.actions(Actions.translateBy(0, table.getPrefHeight(), 1, Interp.fade), Actions.run(() => {
             lastUnlockTable = null;
             lastUnlockLayout = null;
@@ -34,64 +28,49 @@ function popup(intable) {
     lastUnlockTable = container;
     lastUnlockLayout = intable;
 }
+
 function chatColor(color) {
     return "[#" + color.toString() + "]";
 }
+
 function chatTeamColor(team) {
     return "[#" + team.color.toString() + "]";
 }
+
 function toBlockEmoji(block) {
     return String.fromCharCode(Fonts.getUnicode(block.name));
 }
+
 function getConstructingBlock(tile) {
-    if (!tile.build) {
-        return Blocks.air;
+    if (!tile || !tile.build) return Blocks.air;
+    if (tile.build instanceof ConstructBlock.ConstructBuild) {
+        return tile.build.cblock;
     }
-    if (!tile.build.cblock) {
-        return tile.build.block;
-    }
-    return tile.build.cblock;
+    return tile.build.block;
 }
 
 var eventid = 0;
+
+var btnDragging = false;
+var bDX = 0, bDY = 0;
+var btnTable = null;
 
 function eventLogInfo(team, message) {
     queue.add("E-" + eventid + " Team " + chatTeamColor(team) + team.name + "[white] " + message);
     eventid++;
 }
+
 function eventLogBlock(team, block, tile) {
-    if (!tile) {
-        return;
-    }
-    queue.add("E-" + eventid + " Team " + chatTeamColor(team) + team.name + "[white] has placed:" + block.localizedName + toBlockEmoji(block) + " at [" + tile.x + "," + tile.y + "]");
+    if (!tile) return;
+    queue.add("E-" + eventid + " Team " + chatTeamColor(team) + team.name + "[white] has placed:" + block.localizedName + toBlockEmoji(block) + " at (" + tile.x + "," + tile.y + ")");
     eventid++;
 }
+
 function eventLog(team, tile) {
-    if (!tile) {
-        return;
-    }
-    queue.add("E-" + eventid + " Team " + chatTeamColor(team) + team.name + "[white] has placed:" + getConstructingBlock(tile).localizedName + " at [" + tile.x + "," + tile.y + "]");
+    if (!tile) return;
+    queue.add("E-" + eventid + " Team " + chatTeamColor(team) + team.name + "[white] has placed:" + getConstructingBlock(tile).localizedName + " at (" + tile.x + "," + tile.y + ")");
     eventid++;
 }
-
-function getIcon(id) {
-    log("id = " + id);
-    let name = Core.settings.getString(id);
-
-    if (name) {
-
-        let mychar = name.slice(-1);
-        // let icon=Icon.icons.get(name.slice(-1), Icon.paste);
-        let icon = Fonts.getGlyph(Fonts.def, mychar);
-        log("name = " + name);
-        log("icon = " + icon);
-        return icon;
-    }
-    return Icon.paste;
-}
-
-
-
 
 const Milestone = {
     name: "",
@@ -101,14 +80,12 @@ const Milestone = {
         var f = Object.create(Milestone);
         f.name = name;
         return f;
-    },
-}
-
-const BlockBuildTracker = function (atile, block, tracker) {
-    var tile = Vars.world.tile(atile.pos());
-    if (!tile.build) {
-        return true;
     }
+};
+
+const BlockBuildTracker = function(atile, block, tracker) {
+    var tile = atile;
+    if (!tile || !tile.build) return true;
     if (tile.build.block == block) {
         if ((tracker.buildfilter && tracker.buildfilter(tile.build)) || !tracker.buildfilter) {
             tracker.displayAlert(tile.build.team, block, tile);
@@ -119,8 +96,7 @@ const BlockBuildTracker = function (atile, block, tracker) {
         return true;
     }
     return false;
-}
-
+};
 
 const BlockTracker = {
     tile: null,
@@ -129,9 +105,6 @@ const BlockTracker = {
     block: null,
     done: false,
     repeatable: false,
-    /*
-    customText:
-    */
     new(tile, tracker, milestone, block, repeatable) {
         var f = Object.create(BlockTracker);
         f.tile = tile;
@@ -157,8 +130,7 @@ const BlockTracker = {
             eventLogInfo(team, this.customText(team, block, tile));
         }
     }
-
-}
+};
 
 const BlockTrackHandler = {
     milestoneName: null,
@@ -192,7 +164,7 @@ const BlockTrackHandler = {
     getId() {
         return "m " + this.milestoneName + " : " + this.block.name;
     }
-}
+};
 
 const TeamAchievement = {
     silicon: false,
@@ -207,8 +179,6 @@ const TeamAchievement = {
     units: null,
     team: null,
     milestones: null,
-
-
     new(team) {
         var f = Object.create(TeamAchievement);
         f.team = team;
@@ -223,10 +193,8 @@ const TeamAchievement = {
         }
         return this.milestones.get(name);
     },
-    processBuildingEvent(tile) {
-    },
+    processBuildingEvent(tile) {},
     processUnitCreateEvent(unit) {
-        print(unit.name);
         if (!this.units) {
             this.units = Seq.with(unit);
             eventLogInfo(this.team, "has started making " + unit.localizedName + toBlockEmoji(unit));
@@ -236,30 +204,32 @@ const TeamAchievement = {
             eventLogInfo(this.team, "has started making " + unit.localizedName + toBlockEmoji(unit));
         }
     }
+};
 
-}
 var blocktrackhandle = null;
 var trackers = new Seq();
 var teams = null;
 
 function addTrackHandler(bth) {
     if (!blocktrackhandle) {
-        blocktrackhandle = ObjectMap.of(bth.getId(), bth);
-        return;
+        blocktrackhandle = {};
     }
-    blocktrackhandle.put(bth.getId(), bth);
+    blocktrackhandle[bth.getId()] = bth;
 }
+
 function addTracker(tracker) {
     trackers.add(tracker);
 }
+
 function getTeamAch(team) {
     if (!teams) {
-        teams = ObjectMap.of(team, TeamAchievement.new(team));
+        teams = {};
     }
-    if (!teams.get(team)) {
-        teams.put(team, TeamAchievement.new(team));
+    var key = team.name || String(team);
+    if (!teams[key]) {
+        teams[key] = TeamAchievement.new(team);
     }
-    return teams.get(team);
+    return teams[key];
 }
 
 function inCamera(camera, x, y) {
@@ -270,10 +240,11 @@ var alerticonlow;
 var alerticonhigh;
 var pipicon;
 var pips = new Seq();
+
 function triggerPip(x, y, s, m) {
     var trgg = false;
     pips.each(t => {
-        if (trgg) { return; }
+        if (trgg) return;
         if (t.retrigger(x, y, s, m)) {
             trgg = true;
         }
@@ -285,6 +256,7 @@ function triggerPip(x, y, s, m) {
     }
     pips.sort(floatf(p => p.severity));
 }
+
 var alertPip = {
     x: 0,
     y: 0,
@@ -309,13 +281,9 @@ var alertPip = {
         this.life++;
         this.maxlife = (Math.min(3000, 500 + this.severity * 500));
         let fade = Mathf.clamp((this.maxlife - this.life) * 0.01, 0, 1);
-        if (!showpips) {
-            return;
-        }
 
         this.shake /= 1.4;
         var camera = Core.camera;
-
 
         let col = Pal.accent;
         let icon = (this.severity < 2 ? alerticonlow : alerticonhigh);
@@ -330,6 +298,7 @@ var alertPip = {
         let camdist = Mathf.dst(this.x, this.y, camera.position.x, camera.position.y);
         let size = Math.max(0.5, 1.0 / (1.0 + 0.002 * camdist));
         this.animate += (size - this.animate) * 0.1;
+
         if (inCamera(camera, this.x, this.y) && camdist < 80) {
             if (this.transition >= 1) {
                 this.px = this.x;
@@ -340,7 +309,6 @@ var alertPip = {
                 this.px += (this.x - this.px) * 0.2;
                 this.py += (this.y + 8 - this.py) * 0.2;
                 this.pang += (270 - this.pang) * 0.2;
-
             }
 
             Draw.color(col);
@@ -348,7 +316,6 @@ var alertPip = {
             this.points.each(p => {
                 Lines.line(this.px, this.py - 8, p.x, p.y);
             });
-
         } else {
             let dx = this.x - camera.position.x;
             let dy = this.y - camera.position.y;
@@ -364,17 +331,14 @@ var alertPip = {
                 this.py += (camera.position.y + dy * 20 - this.py) * 0.3;
                 this.pang += (Mathf.atan2(dx, dy) * Mathf.radiansToDegrees - this.pang) * 0.3;
             }
-
         }
+
         Draw.color(Pal.darkerGray);
         Fill.circle(this.px, this.py, (22 / 4) * this.animate);
-
         Draw.color(col);
         Draw.alpha(fade);
-
         Draw.rect(pipicon, this.px, this.py, 12 * this.animate, 12 * this.animate, this.pang);
         Draw.rect(icon, this.px + Mathf.range(this.shake), this.py + Mathf.range(this.shake), 4 * this.animate, 4 * this.animate);
-
     },
     retrigger(x, y, s, max) {
         if (Mathf.dst2(x - this.x, y - this.y) < (100 * 100)) {
@@ -390,60 +354,9 @@ var alertPip = {
         }
         return false;
     }
-}
-
-
-var unitprogressbar = {
-    replace: false,
-    draw(build) {
-        if (build.currentPlan == -1) {
-            return;
-        }
-
-        var prog = 0;
-        if (build instanceof UnitFactory.UnitFactoryBuild) {
-            var plan = build.block.plans.get(build.currentPlan);
-            prog = build.progress / plan.time;
-        } else {
-            prog = build.progress / build.block.constructTime;
-        }
-        if (prog > 0 && viewprogress) {
-            var hw = build.block.size * 4;
-            var yoffset = hw + 2;
-
-            Draw.z(Layer.darkness + 1);
-
-            Draw.color(Pal.darkerGray);
-            Lines.stroke(4);
-            Lines.line(build.x - hw, build.y + yoffset, build.x - hw + hw * 2 * prog, build.y + yoffset);
-            Draw.color(build.team.color);
-            Lines.stroke(2);
-            Lines.line(build.x - hw, build.y + yoffset, build.x - hw + hw * 2 * prog, build.y + yoffset);
-
-            var text = Math.floor(prog * 100.0) + "%";
-
-            var font = Fonts.outline;
-            var lay = Pools.obtain(GlyphLayout, prov(() => { return new GlyphLayout() }));
-
-            font.setUseIntegerPositions(false);
-            font.getData().setScale(1.0 / 4.0 / Scl.scl(1.0));
-
-            lay.setText(font, text);
-
-            font.setColor(Color.white);
-            font.draw(text, build.x - lay.width / 2, build.y + yoffset + lay.height / 2 + 6);
-            font.getData().setScale(1);
-            Pools.free(lay);
-            Draw.reset();
-        }
-
-    }
-}
-
-
+};
 
 var inConstruction = new Seq();
-
 var queue = new Seq();
 var prefix = "/t";
 var prevsent = 0;
@@ -451,13 +364,16 @@ var enabled = false;
 
 Events.on(EventType.BlockDestroyEvent, cons(e => {
     var tile = e.tile;
+    if (!tile) return;
+
     if (tile.build instanceof CoreBlock.CoreBuild) {
         if (tile.team() == Vars.player.team()) {
-            queue.add("[red]!!Core at [" + tile.x + "," + tile.y + "] was lost!!");
+            queue.add("[red]!!Core at (" + tile.x + "," + tile.y + ") was lost!!");
         } else {
-            eventLogInfo(tile.team(), "has lost a core at [" + tile.x + "," + tile.y + "]");
+            eventLogInfo(tile.team(), "has lost a core at (" + tile.x + "," + tile.y + ")");
         }
     }
+
     if (tile.team() == Vars.player.team()) {
         var severe = 0.01;
         var max = 0.5;
@@ -476,12 +392,11 @@ Events.on(EventType.BlockDestroyEvent, cons(e => {
             max = tile.build.block.size * 2;
             if (tile.build.block instanceof PowerGenerator) {
                 severe *= 150;
-            } else
-                if (tile.build.block instanceof PowerNode) {
-                    severe *= 3;
-                } else {
-                    severe *= 50;
-                }
+            } else if (tile.build.block instanceof PowerNode) {
+                severe *= 3;
+            } else {
+                severe *= 50;
+            }
         }
         if (tile.build.block.category == Category.logic) {
             severe *= 10;
@@ -505,399 +420,212 @@ Events.on(EventType.BlockDestroyEvent, cons(e => {
         triggerPip(tile.getX(), tile.getY(), severe, max);
     }
 }));
-var anticommandspam = new Seq();;
-
-/*
-Events.on(EventType.CommandIssueEvent, cons(e => {
-    var tile = e.tile;
-    if(tile.team!== Vars.player.team() && e.command == UnitCommand.attack){
-        //remove any attack commands in the last 10 seconds.
-        anticommandspam.each(t =>{
-            if(t.team == tile.team){
-                t.timer=-1;
-            }
-        });
-    	
-        anticommandspam.add({
-            timer: 0,
-            team: tile.team
-        });
-    	
-    }
-}));*/
 
 Events.on(EventType.ClientLoadEvent,
     cons(e => {
         alerticonlow = Core.atlas.find("pvpnotifs-alert-0");
         alerticonhigh = Core.atlas.find("pvpnotifs-alert-1");
         pipicon = Core.atlas.find("pvpnotifs-pip");
+
         addTrackHandler(BlockTrackHandler.new("graphite", BlockBuildTracker, Blocks.graphitePress, false, {
-            "customText": function (team, block, tile) {
+            "customText": function(team, block, tile) {
                 return "has started graphite production " + toBlockEmoji(block) + "" + toBlockEmoji(Items.graphite);
             }
         }));
         addTrackHandler(BlockTrackHandler.new("silicon", BlockBuildTracker, Blocks.siliconSmelter, false, {
-            "customText": function (team, block, tile) {
+            "customText": function(team, block, tile) {
                 return "has started silicon production " + toBlockEmoji(block) + "" + toBlockEmoji(Items.silicon);
             }
         }));
+        addTrackHandler(BlockTrackHandler.new("siliconCrucible", BlockBuildTracker, Blocks.siliconCrucible, false, {
+            "customText": function(team, block, tile) {
+                return "has started mass silicon production " + toBlockEmoji(block) + "" + toBlockEmoji(Items.silicon);
+            }
+        }));
+        addTrackHandler(BlockTrackHandler.new("kiln", BlockBuildTracker, Blocks.kiln, false, {
+            "customText": function(team, block, tile) {
+                return "has started metaglass production " + toBlockEmoji(block) + "" + toBlockEmoji(Items.metaglass);
+            }
+        }));
         addTrackHandler(BlockTrackHandler.new("plast", BlockBuildTracker, Blocks.plastaniumCompressor, false, {
-            "customText": function (team, block, tile) {
+            "customText": function(team, block, tile) {
                 return "has started plastanium production " + toBlockEmoji(block) + "" + toBlockEmoji(Items.plastanium);
             }
         }));
         addTrackHandler(BlockTrackHandler.new("phase", BlockBuildTracker, Blocks.phaseWeaver, false, {
-            "customText": function (team, block, tile) {
+            "customText": function(team, block, tile) {
                 return "has started phase production " + toBlockEmoji(block) + "" + toBlockEmoji(Items.phaseFabric);
             }
         }));
         addTrackHandler(BlockTrackHandler.new("surge", BlockBuildTracker, Blocks.surgeSmelter, false, {
-            "customText": function (team, block, tile) {
+            "customText": function(team, block, tile) {
                 return "has started surge production " + toBlockEmoji(block) + "" + toBlockEmoji(Items.surgeAlloy);
             }
         }));
-
-        // pyratiteMixer
         addTrackHandler(BlockTrackHandler.new("pyratite", BlockBuildTracker, Blocks.pyratiteMixer, false, {
-            "customText": function (team, block, tile) {
+            "customText": function(team, block, tile) {
                 return "has started pyratite production " + toBlockEmoji(block) + "" + toBlockEmoji(Items.pyratite);
             }
         }));
-
-        // blastMixer
         addTrackHandler(BlockTrackHandler.new("blast", BlockBuildTracker, Blocks.blastMixer, false, {
-            "customText": function (team, block, tile) {
+            "customText": function(team, block, tile) {
                 return "has started blast production " + toBlockEmoji(block) + "" + toBlockEmoji(Items.blastCompound);
             }
         }));
-
         addTrackHandler(BlockTrackHandler.new("foreshadow", BlockBuildTracker, Blocks.foreshadow, false, {}));
 
+        if (Blocks.siliconArcFurnace) {
+            addTrackHandler(BlockTrackHandler.new("siliconArcFurnace", BlockBuildTracker, Blocks.siliconArcFurnace, false, {
+                "customText": function(team, block, tile) {
+                    return "has started silicon production " + toBlockEmoji(block) + "" + toBlockEmoji(Items.silicon);
+                }
+            }));
+            addTrackHandler(BlockTrackHandler.new("carbideCrucible", BlockBuildTracker, Blocks.carbideCrucible, false, {
+                "customText": function(team, block, tile) {
+                    return "has started carbide production " + toBlockEmoji(block) + "" + toBlockEmoji(Items.carbide);
+                }
+            }));
+            addTrackHandler(BlockTrackHandler.new("surgeCrucible", BlockBuildTracker, Blocks.surgeCrucible, false, {
+                "customText": function(team, block, tile) {
+                    return "has started surge production " + toBlockEmoji(block) + "" + toBlockEmoji(Items.surgeAlloy);
+                }
+            }));
+            addTrackHandler(BlockTrackHandler.new("phaseSynthesizer", BlockBuildTracker, Blocks.phaseSynthesizer, false, {
+                "customText": function(team, block, tile) {
+                    return "has started phase production " + toBlockEmoji(block) + "" + toBlockEmoji(Items.phaseFabric);
+                }
+            }));
+            addTrackHandler(BlockTrackHandler.new("cyanogenSynthesizer", BlockBuildTracker, Blocks.cyanogenSynthesizer, false, {
+                "customText": function(team, block, tile) {
+                    return "has started cyanogen production " + toBlockEmoji(block);
+                }
+            }));
+            addTrackHandler(BlockTrackHandler.new("electrolyzer", BlockBuildTracker, Blocks.electrolyzer, false, {
+                "customText": function(team, block, tile) {
+                    return "has started electrolysis " + toBlockEmoji(block);
+                }
+            }));
+            addTrackHandler(BlockTrackHandler.new("slagCentrifuge", BlockBuildTracker, Blocks.slagCentrifuge, false, {
+                "customText": function(team, block, tile) {
+                    return "has started slag centrifuge " + toBlockEmoji(block);
+                }
+            }));
 
-
-
+            var erekirDrillEvent = {
+                "customText": function(team, block, tile) {
+                    var build = tile.build;
+                    var item = build ? build.dominantItem : null;
+                    var resName = item ? item.localizedName : "ore";
+                    return "has started " + resName + " mining " + toBlockEmoji(block) + (item ? "" + toBlockEmoji(item) : "");
+                }
+            };
+            addTrackHandler(BlockTrackHandler.new("plasmaBore", BlockBuildTracker, Blocks.plasmaBore, false, erekirDrillEvent));
+            addTrackHandler(BlockTrackHandler.new("largePlasmaBore", BlockBuildTracker, Blocks.largePlasmaBore, false, erekirDrillEvent));
+            addTrackHandler(BlockTrackHandler.new("impactDrill", BlockBuildTracker, Blocks.impactDrill, false, erekirDrillEvent));
+            addTrackHandler(BlockTrackHandler.new("eruptionDrill", BlockBuildTracker, Blocks.eruptionDrill, false, erekirDrillEvent));
+        }
 
         Vars.content.blocks().each((e2) => {
             if (e2 instanceof UnitFactory) {
                 addTrackHandler(BlockTrackHandler.new(e2.name, BlockBuildTracker, e2, false, {}));
-                e2.buildType = () => {
-                    return extend(UnitFactory.UnitFactoryBuild, e2, {
-                        drawables: [
-                            Object.create(unitprogressbar)
-                        ],
-                        draw() {
-                            var replaced = false;
-                            for (let i = 0; i < this.drawables.length; i++) {
-                                if (this.drawables[i].replace) {
-                                    replaced = true;
-                                    break;
-                                }
-                            }
-                            if (!replaced) {
-                                this.super$draw();
-                            }
-                            for (let i = 0; i < this.drawables.length; i++) {
-                                this.drawables[i].draw(this);
-                            }
-                        }
-
-                    });
-                }
             }
             if (e2 instanceof Reconstructor) {
-                addTrackHandler(BlockTrackHandler.new(e2.name, BlockBuildTracker, e2, false, {
-                    "customText": function (team, block, tile) {
-                        return "can now make Tier-" + Math.round((block.size + 1) * 0.5) + " units" + toBlockEmoji(block);
-                    }
-                }));
-
-                e2.buildType = () => {
-                    return extend(Reconstructor.ReconstructorBuild, e2, {
-                        drawables: [
-                            Object.create(unitprogressbar)
-                        ],
-                        draw() {
-                            var replaced = false;
-                            for (let i = 0; i < this.drawables.length; i++) {
-                                if (this.drawables[i].replace) {
-                                    replaced = true;
-                                    break;
-                                }
-                            }
-                            if (!replaced) {
-                                this.super$draw();
-                            }
-                            for (let i = 0; i < this.drawables.length; i++) {
-                                this.drawables[i].draw(this);
-                            }
-                        }
-
-                    });
-                }
+                addTrackHandler(BlockTrackHandler.new(e2.name, BlockBuildTracker, e2, false, {}));
             }
         });
-        var titaniumevent = {
-            "customText": function (team, block, tile) {
-                return "has started titanium production " + toBlockEmoji(block) + "" + toBlockEmoji(Items.titanium);
-            },
-            "buildfilter": function (build) {
-                return build.dominantItem == Items.titanium;
+
+        var drillEvent = {
+            "customText": function(team, block, tile) {
+                var build = tile.build;
+                var item = build ? build.dominantItem : null;
+                var resName = item ? item.localizedName : "ore";
+                return "has started " + resName + " mining " + toBlockEmoji(block) + (item ? "" + toBlockEmoji(item) : "");
             }
         };
-        var thoriumevent = {
-            "customText": function (team, block, tile) {
-                return "has started thorium production " + toBlockEmoji(block) + "" + toBlockEmoji(Items.thorium);
-            },
-            "buildfilter": function (build) {
-                return build.dominantItem == Items.thorium;
-            }
-        };
-        addTrackHandler(BlockTrackHandler.new("titanium", BlockBuildTracker, Blocks.pneumaticDrill, false, titaniumevent));
-        addTrackHandler(BlockTrackHandler.new("titanium", BlockBuildTracker, Blocks.laserDrill, false, titaniumevent));
-        addTrackHandler(BlockTrackHandler.new("titanium", BlockBuildTracker, Blocks.blastDrill, false, titaniumevent));
-        addTrackHandler(BlockTrackHandler.new("thorium", BlockBuildTracker, Blocks.laserDrill, false, thoriumevent));
-        addTrackHandler(BlockTrackHandler.new("thorium", BlockBuildTracker, Blocks.blastDrill, false, thoriumevent));
+        addTrackHandler(BlockTrackHandler.new("pneumaticDrill", BlockBuildTracker, Blocks.pneumaticDrill, false, drillEvent));
+        addTrackHandler(BlockTrackHandler.new("laserDrill", BlockBuildTracker, Blocks.laserDrill, false, drillEvent));
+        addTrackHandler(BlockTrackHandler.new("blastDrill", BlockBuildTracker, Blocks.blastDrill, false, drillEvent));
 
-        /* - unforuntaly doesnt work and makes the messages not appear.(the ui element is still there thoh)
-        Vars.ui.chatfrag = extend(	ChatFragment,{
-            container2:null,
-            addMessage(message,sender){
-                this.super$addMessage(message,sender);
-                onChat(sender,message);
-            },
-            container(){
-                if(!this.container2){
-                    let th = this;
-                    this.container2 = extend(Fragment,{
-                        build(parent){
-                            Core.scene.add(th);
-                        }
-                    });
-                }
-                return this.container2;
-            }
-        });*/
-
-
-        Vars.mods.getScripts().runConsole("this.alert = this.global.alerts.onChat");
-        //onChat("Xelo",msg)
-        var rangeicon = Core.atlas.find("pvpnotifs-rangeair");
-        var rangeicon2 = Core.atlas.find("pvpnotifs-rangeground");
-        var rangeammoicon = Core.atlas.find("pvpnotifs-rangeammo");
-        var progressicon = Core.atlas.find("pvpnotifs-unitprogress");
-        var oreicon = Core.atlas.find("pvpnotifs-orescan");
-        var votekick = Core.atlas.find("pvpnotifs-votekick");
-        var pipbuttonicon = Core.atlas.find("pvpnotifs-pipicon");
-
-        //Vars.indexer.getAllied(team, BlockFlag.generator).forEach((c)=>{});
+        try {
+            Vars.mods.getScripts().runConsole("this.alert = this.global.alerts.onChat");
+        } catch (err) {
+            print("PvP-Alerts: failed to expose onChat: " + err);
+        }
 
         var coreplus = (t) => {
-            if (!t) {
-                return;
-            }
+            if (!t) return;
             t.row();
-            //prov(()=>{return "Power:"+Strings.fixed(powerBalance()*60.0,1)})
-            //prov(()=>{return Pal.health.cpy().lerp(Color.lime, Math.clamp(powerBalance()*0.25+0.5,0,1))})
             var powbar = new Bar("Power", Pal.accent, floatp(() => { return getBatLevel(); }));
-            powbar.set(prov(() => { return "Power: " + (powerBalance() >= 0 ? "+" : "") + Strings.fixed(powerBalance() * 60.0, 1) }), floatp(() => { return getBatLevel(); }), Pal.accent);
+            powbar.set(prov(() => { return "Power: " + (powerBalance() >= 0 ? "+" : "") + Strings.fixed(powerBalance() * 60.0, 1); }), floatp(() => { return getBatLevel(); }), Pal.accent);
             t.add(powbar).width(200).height(25).pad(4);
-        }
-        coreplus(Vars.ui.hudGroup.find(boolf(e => { return e instanceof CoreItemsDisplay })));
+        };
+        coreplus(Vars.ui.hudGroup.find(boolf(e => { return e instanceof CoreItemsDisplay; })));
 
-
-        var custominfo = extend(BaseDialog, "", {
-            showSchem(schem) {
-                this.setFillParent(true);
-                if (this.buttons.getCells().isEmpty()) {
-                    this.addCloseButton();
-                }
-                this.cont.clear();
-                this.title.setText("[[" + Core.bundle.get("schematic") + "] " + schem.name());
-
-                this.cont.add(Core.bundle.format("schematic.info", schem.width, schem.height, schem.tiles.size)).color(Color.lightGray);
-                this.cont.row();
-                this.cont.add(new SchematicsDialog.SchematicImage(schem)).maxSize(800);
-                this.cont.row();
-
-                var arr = schem.requirements();
-                this.cont.table(cons(r => {
-                    var i = 0;
-                    arr.each((item, amount) => {
-                        // r.image(item.icon(Cicon.small)).left();
-                        r.label(() => {
-                            var core = Vars.player.core();
-                            if (core == null || Vars.state.rules.infiniteResources || core.items.has(item, amount)) return "[lightgray]" + amount + "";
-                            return (core.items.has(item, amount) ? "[lightgray]" : "[scarlet]") + Math.min(core.items.get(item), amount) + "[lightgray]/" + amount;
-                        }).padLeft(2).left().padRight(4);
-
-                        if (++i % 4 == 0) {
-                            r.row();
-                        }
-                    });
-                }));
-                this.cont.row();
-                var consump = schem.powerConsumption() * 60;
-                var prod = schem.powerProduction() * 60;
-                if (!Mathf.zero(consump) || !Mathf.zero(prod)) {
-                    this.cont.table(cons(t => {
-
-                        if (!Mathf.zero(prod)) {
-                            t.image(Icon.powerSmall).color(Pal.powerLight).padRight(3);
-                            t.add("+" + Strings.autoFixed(prod, 2)).color(Pal.powerLight).left();
-
-                            if (!Mathf.zero(consump)) {
-                                t.add().width(15);
-                            }
-                        }
-
-                        if (!Mathf.zero(consump)) {
-                            t.image(Icon.powerSmall).color(Pal.remove).padRight(3);
-                            t.add("-" + Strings.autoFixed(consump, 2)).color(Pal.remove).left();
-                        }
-                    }));
-                }
-
-                this.cont.row();
-                this.cont.table(
-                    cons((tbl) => {
-                        for (let i = 0; i < schemNumber; i++) {
-                            const g = i;
-
-
-                            if (g > 1 && g % 5 == 0) {
-                                tbl.row();
-                            }
-
-                            let icon = getIcon(g + "-schem");
-
-                            tbl.button(icon, Styles.clearTogglei, run(() => {
-                                log(g + " setting")
-                                Core.settings.put(g + "-schem", new java.lang.String(schem.name()));
-                            })).update(b => b.setChecked(Core.settings.getString(g + "-schem") == schem.name())).width(46).height(46).name("test" + 1).tooltip("set to slot " + g);
-                        }
-                    })
-                );
-                this.show();
-            }
-        });
-
-
-        Vars.ui.schematics = extend(SchematicsDialog, {
-            showInfo(schem) {
-                custominfo.showSchem(schem);
-            }
-        });
+        var savedBtnX = Core.settings.getInt("pvpnotifs-bx", 4);
+        var savedBtnY = Core.settings.getInt("pvpnotifs-by", 4);
 
         Vars.ui.hudGroup.fill(cons(t => {
-            let togglestyle = Styles.clearNoneTogglei;
+            btnTable = t;
             let style = Styles.clearTogglei;
-            t.button(new TextureRegionDrawable(rangeicon), togglestyle, run(() => {
-                viewAirRange = !viewAirRange;
-            })).update(b => b.setChecked(viewAirRange)).width(46).height(46).name("airrange").tooltip("view air turret range");
+            t.bottom().left().margin(4);
 
-            t.button(new TextureRegionDrawable(rangeicon2), togglestyle, run(() => {
-                viewGroundRange = !viewGroundRange;
-            })).update(b => b.setChecked(viewGroundRange)).width(46).height(46).name("groundrange").tooltip("view ground turret range");
+            var dragBtn = t.button(Icon.move, Styles.clearNonei, run(() => {
+            })).width(46).height(46).name("drag").tooltip("drag to move").get();
 
-            t.button(new TextureRegionDrawable(rangeammoicon), togglestyle, run(() => {
-                ignoreNoAmmo = !ignoreNoAmmo;
-            })).update(b => b.setChecked(ignoreNoAmmo)).width(46).height(46).name("ammorange").tooltip("ignore turrets without ammo");
-
-            t.row();
             t.button(Icon.units, style, run(() => {
-                onChat("Xelo", "units")
+                onChat(Vars.player ? Vars.player.name : "local", "units");
             })).width(46).height(46).name("units").tooltip("count enemy units");
 
-            t.button(new TextureRegionDrawable(progressicon), togglestyle, run(() => {
-                viewprogress = !viewprogress;
-            })).update(b => b.setChecked(viewprogress)).width(46).height(46).name("progress").tooltip("show progress bar on unit factories");
-
-            t.button(Icon.units, togglestyle, run(() => {
-                stealUnit = !stealUnit;
-            })).update(b => b.setChecked(stealUnit)).width(46).height(46).name("stealunit").tooltip("control nearby unit as soon as it exits factory");
-
-            t.row();
-            t.button(new TextureRegionDrawable(oreicon), togglestyle, run(() => {
-                orescan = !orescan;
-            })).update(b => b.setChecked(orescan)).width(46).height(46).name("ores").tooltip("show covered ores");
-            t.button(Icon.eyeSmall, togglestyle, run(() => {
+            t.button(Icon.eyeSmall, style, run(() => {
                 Vars.enableLight = !Vars.enableLight;
-            })).update(b => b.setChecked(orescan)).width(46).height(46).name("light").tooltip("toggle lighting");
-            t.button(new TextureRegionDrawable(pipbuttonicon), togglestyle, run(() => {
-                showpips = !showpips;
-            })).update(b => b.setChecked(showpips)).width(46).height(46).name("light").tooltip("show pips");
-            t.row();
+            })).update(b => b.setChecked(Vars.enableLight)).width(46).height(46).name("light").tooltip("toggle lighting");
+
             t.button(Icon.refresh, style, run(() => {
                 Call.sendChatMessage("/sync");
-            })).width(46).height(46).name("ores").tooltip("sync");
-            t.button(new TextureRegionDrawable(votekick), style, run(() => {
+            })).width(46).height(46).name("sync").tooltip("/sync");
+
+            t.button(Icon.hammer, style, run(() => {
                 Call.sendChatMessage("/vote y");
-            })).width(46).height(46).name("ores").tooltip("vote y");
+            })).width(46).height(46).name("votekick").tooltip("vote y");
 
-            t.button(Icon.terminal, togglestyle, run(() => {
-                if (playerAI) {
-                    playerAI = null;
-                } else {
-                    playerAI = new BuilderAI();
-                    playerAI.unit(Vars.player.unit());
+            t.setPosition(savedBtnX, savedBtnY);
 
-                }
-                if (Vars.mobile) {
-                    if (playerAI) {
-                        Vars.control.input = new DesktopInput();
-                    } else {
-                        Vars.control.input = new MobileInput();
+            dragBtn.addListener(extend(InputListener, {
+                touchDown: function(event, x, y, pointer, _btn) {
+                    bDX = x;
+                    bDY = y;
+                    btnDragging = true;
+                    event.cancel();
+                    return true;
+                },
+                touchDragged: function(event, x, y, pointer) {
+                    if (btnDragging) {
+                        savedBtnX += x - bDX;
+                        savedBtnY += y - bDY;
+                        bDX = x;
+                        bDY = y;
+                        var sw = Core.graphics.getWidth();
+                        var sh = Core.graphics.getHeight();
+                        var bw = btnTable.getWidth();
+                        var bh = btnTable.getHeight();
+                        if (savedBtnX < 0) savedBtnX = 0;
+                        if (savedBtnY < 0) savedBtnY = 0;
+                        if (savedBtnX + bw > sw) savedBtnX = sw - bw;
+                        if (savedBtnY + bh > sh) savedBtnY = sh - bh;
+                        btnTable.x = savedBtnX;
+                        btnTable.y = savedBtnY;
+                    }
+                },
+                touchUp: function(event, x, y, pointer, _btn) {
+                    if (btnDragging) {
+                        btnDragging = false;
+                        Core.settings.put("pvpnotifs-bx", new java.lang.Integer(Math.round(savedBtnX)));
+                        Core.settings.put("pvpnotifs-by", new java.lang.Integer(Math.round(savedBtnY)));
                     }
                 }
-
-            })).update(b => b.setChecked(!!playerAI)).width(46).height(46).name("ores").tooltip("become gamma Ai");
-
-            t.top().right().marginTop(180);
-            //Icon.units
+            }));
         }));
-        Vars.ui.hudGroup.fill(cons(t => {
-            let style = Styles.clearTogglei;
-            const width = 46 * 3 / 5;
-            for (let h = 0; h < schemNumber; h++) {
-                const i = h;
-                if (h > 1 && h % 5 == 0) {
-                    t.row();
-                }
-                let icon = getIcon(i + "-schem");
-                let imgbutton = t.button(icon, style, run(() => {
-                    useSchematic(Core.settings.getString(i + "-schem"), i + "-schem");
-                }));
-
-                imgbutton.update(b => b.setDisabled(!Core.settings.getString(i + "-schem")))
-                    .width(width).height(width).name("imgbuttonores")
-                    .tooltip(Core.settings.getString(i + "-schem", "_"));
-
-                imgbutton.get().getImage().setScaling(Scaling.stretch);
-                imgbutton.get().getImage().setSize(width * 0.8, width * 0.8);
-                imgbutton.get().resizeImage(width * 0.8);
-            }
-            t.top().right().marginTop(364);
-        }));
-
     }));
-
-function useSchematic(name, id) {
-    if (!name) { return; }
-    print("searching for schem:" + name);
-    var found = null;
-    Vars.schematics.all().each((s) => {
-        if (s.name() == name) {
-            print("found schem");
-            found = s;
-        }
-    });
-    if (found) {
-        Vars.control.input.useSchematic(found);
-    } else if (id) {
-        Core.settings.put(id, "");
-    }
-}
-
 
 var playerMiningAI = extend(AIController, {
     mining: true,
@@ -910,9 +638,7 @@ var playerMiningAI = extend(AIController, {
     },
     updateMovement() {
         let unit = this.unit;
-
-        var core = unit.closestCore(); //core is a Building
-
+        var core = unit.closestCore();
         if (!(unit.canMine()) || core == null) return;
 
         if (unit.mineTile != null && !unit.mineTile.within(unit, unit.type.range)) {
@@ -921,36 +647,25 @@ var playerMiningAI = extend(AIController, {
 
         if (this.mining) {
             if (this.timer.get(1, 240) || this.targetItem == null) {
-                // let mineItems = unit.team.data().mineItems;
                 let mineItems = Seq.with(Items.copper, Items.lead, Items.coal, Items.titanium, Items.thorium);
-
                 this.targetItem = mineItems.min(boolf(i => Vars.indexer.hasOre(i) && unit.canMine(i)), floatf(i => core.items.get(i) - jot.orePriority(i)));
-
-
             }
-
-            //core full of the target item, do nothing
             if (this.targetItem != null && core.acceptStack(this.targetItem, 1, unit) == 0) {
                 unit.clearItem();
                 unit.mineTile = null;
                 return;
             }
-            //custom player mining ai: todo
-            //if inventory is full, drop it off.
             if (unit.stack.amount >= unit.type.itemCapacity || (this.targetItem != null && !unit.acceptsItem(this.targetItem))) {
                 this.mining = false;
             } else {
                 if (this.targetItem != null) {
                     this.ore = Vars.indexer.findClosestOre(core.x, core.y, this.targetItem);
                 }
-
                 if (this.ore != null) {
                     this.moveTo(this.ore, unit.type.range / 4, 20);
-
                     if (unit.within(this.ore, unit.type.range * 0.5)) {
                         unit.mineTile = this.ore;
                     }
-
                     if (this.ore.block() != Blocks.air) {
                         this.mining = false;
                     }
@@ -958,135 +673,32 @@ var playerMiningAI = extend(AIController, {
             }
         } else {
             unit.mineTile = null;
-
             if (unit.stack.amount == 0) {
                 this.mining = true;
-                this.return;
+                return;
             }
-
             if (unit.within(core, unit.type.range)) {
                 if (core.acceptStack(unit.stack.item, unit.stack.amount, unit) > 0) {
-                    Call.transferInventory(Vars.player, core);
-                    //Call.transferItemTo(unit, unit.stack.item, unit.stack.amount, unit.x, unit.y, core);
+                    try {
+                        Call.transferInventory(Vars.player, core);
+                    } catch (err) {
+                        Call.transferItemTo(unit, unit.stack.item, unit.stack.amount, unit.x, unit.y, core);
+                    }
                 }
-
-                //unit.clearItem();
                 this.mining = true;
             }
-
             this.circle(core, unit.type.range / 1.8);
         }
     }
 });
 
-
 var playerAI = null;
-
 var powerbal = 0;
 var stored = 0;
 var battery = 0.01;
-function powerBalance() {
-    return powerbal;
-}
-function getBatLevel() {
-    return stored / battery;
-}
 
-var viewAirRange = false;
-var viewGroundRange = false;
-var ignoreNoAmmo = false;
-var viewprogress = true;
-var orescan = false;
-var showpips = true;
-
-
-function eachIndexed(team, flag, cons) {
-    let iter = Vars.indexer.getAllied(team, flag).iterator();
-    while (iter.hasNext()) {
-        cons.get(iter.next());
-    }
-}
-function hasAmmo(build) {
-
-    if (build.block instanceof PowerTurret || build.block instanceof PointDefenseTurret || build.block instanceof TractorBeamTurret) {
-        return build.power.status > 0;
-    }
-    if (build.block instanceof Turret) {
-        return build.hasAmmo();
-    }
-    return false;
-}
-
-Events.run(Trigger.drawOver, () => {
-
-    jot.drawMouse();
-
-    var camera = Core.camera;
-    var avgx = Math.floor(camera.position.x / Vars.tilesize);
-    var avgy = Math.floor(camera.position.y / Vars.tilesize);
-    var rangex = Math.floor(camera.width / Vars.tilesize / 2) + 3;
-    var rangey = Math.floor(camera.height / Vars.tilesize / 2) + 3;
-
-    if (viewAirRange || viewGroundRange) {
-        Draw.draw(Layer.darkness + 0.01, run(() => {
-            var expandr = 2;
-            var minx = Math.max(avgx - rangex - expandr, 0);
-            var miny = Math.max(avgy - rangey - expandr, 0);
-            var maxx = Math.min(Vars.world.width() - 1, avgx + rangex + expandr);
-            var maxy = Math.min(Vars.world.height() - 1, avgy + rangey + expandr);
-
-            Draw.color(0, 0, 0, 0.3);
-            Fill.rect(camera.position.x, camera.position.y, camera.width, camera.height);
-            allTeams.each((team) => {
-                eachIndexed(team, BlockFlag.turret, cons((tile) => {
-                    if (!tile.build) {
-                        return;
-                    }
-                    let bx = Mathf.clamp(tile.x, minx, maxx);
-                    let by = Mathf.clamp(tile.y, miny, maxy);
-                    if (!(hasAmmo(tile.build) || !ignoreNoAmmo)) {
-                        return;
-                    }
-                    let rdist = Mathf.dst(bx, by, tile.x, tile.y) * 8 - 40;
-                    var tb = tile.build;
-                    if (((viewAirRange && tb.block.targetAir) || (viewGroundRange && tb.block.targetGround)) && rdist < tb.block.range) {
-                        Draw.color(tile.team().color, 0.05);
-                        Fill.circle(tb.x, tb.y, tb.block.range);
-                        Draw.color(tile.team().color, 0.3);
-                        Lines.circle(tb.x, tb.y, tb.block.range);
-                    }
-
-                }));
-            });
-        }));
-    }
-    if (orescan) {
-        Draw.draw(Layer.block + 0.01, run(() => {
-            var minx = Math.max(avgx - rangex - 1, 0);
-            var miny = Math.max(avgy - rangey - 1, 0);
-            var maxx = Math.min(Vars.world.width() - 1, avgx + rangex + 1);
-            var maxy = Math.min(Vars.world.height() - 1, avgy + rangey + 1);
-
-            for (var x = minx; x <= maxx; x++) {
-                for (var y = miny; y <= maxy; y++) {
-                    var tile = Vars.world.rawTile(x, y);
-                    if (!tile.build) {
-                        continue;
-                    }
-                    var tb = tile.drop();
-                    if (tb) {
-                        Draw.rect(tb.icon(Cicon.small), tile.drawx(), tile.drawy());
-                    }
-                }
-            }
-        }));
-    }
-    Draw.draw(Layer.overlayUI + 0.01, run(() => {
-        pips.each(t => {
-            t.draw();
-        });
-    }));
-});
+function powerBalance() { return powerbal; }
+function getBatLevel() { return stored / battery; }
 
 
 function iterateOver(iterator, func) {
@@ -1096,17 +708,22 @@ function iterateOver(iterator, func) {
 }
 
 
+Events.run(Trigger.drawOver, () => {
+    jot.drawMouse();
+
+    Draw.draw(Layer.overlayUI + 0.01, run(() => {
+        pips.each(t => {
+            t.draw();
+        });
+    }));
+});
+
 var glitch = false;
 var delayglitch = 0;
+
 Events.run(Trigger.update, () => {
-
-    pips.filter((t) => {
-        return t.life < t.maxlife;
-    });
-
-    anticommandspam.filter((t) => {
-        return t.timer >= 0;
-    });
+    pips = pips.select((t) => { return t.life < t.maxlife; });
+    anticommandspam = anticommandspam.select((t) => { return t.timer >= 0; });
     anticommandspam.each(t => {
         t.timer += Time.delta;
         if (t.timer > 600) {
@@ -1114,21 +731,27 @@ Events.run(Trigger.update, () => {
             t.timer = -1;
         }
     });
-    if (playerAI && Vars.player.unit() && Vars.player.unit().type) {
-        let base = Math.min(Vars.player.team().items().get(Items.copper), Vars.player.team().items().get(Items.lead));
-        base = Math.min(base, base, Vars.player.team().items().get(Items.coal));
 
-        if ((base < 1000 && playerAI instanceof BuilderAI) || Vars.player.unit().type.buildSpeed <= 0) {
-            playerAI = playerMiningAI;
-        } else if (base >= 1000 && playerAI == playerMiningAI) {
-            playerAI = new BuilderAI();
+    if (playerAI && Vars.player.unit() && Vars.player.unit().type) {
+        try {
+            let base = Math.min(Vars.player.team().items().get(Items.copper), Vars.player.team().items().get(Items.lead));
+            base = Math.min(base, Vars.player.team().items().get(Items.coal));
+
+            if ((base < 1000 && playerAI instanceof BuilderAI) || Vars.player.unit().type.buildSpeed <= 0) {
+                playerAI = playerMiningAI;
+            } else if (base >= 1000 && playerAI == playerMiningAI) {
+                playerAI = new BuilderAI();
+            }
+            if (playerAI == playerMiningAI) {
+                playerAI.unitS(Vars.player.unit());
+            } else {
+                playerAI.unit(Vars.player.unit());
+            }
+            playerAI.updateUnit();
+        } catch (err) {
+            playerAI = null;
+            print("PvP-Alerts: AI error (multiplayer may restrict control): " + err);
         }
-        if (playerAI == playerMiningAI) {
-            playerAI.unitS(Vars.player.unit());
-        } else {
-            playerAI.unit(Vars.player.unit());
-        }
-        playerAI.updateUnit();
     }
 
     if (wasCleared) {
@@ -1141,65 +764,32 @@ Events.run(Trigger.update, () => {
             } else {
                 Vars.ui.chatfrag.addMessage(queue.pop(), "[red]PvP-Alerts");
             }
-
         }
         enabled = be;
         wasCleared = false;
     }
-    for (var i = 0; i < scanningUnits.size; i++) {
-        if (scanningUnits.get(i).x != 0) {
-            var unit = scanningUnits.get(i);
-            if (Vars.player.unit() && stealUnit && !lookingForUnit) {
-                print("attmpting steal");
-                var dist = Mathf.dst(Vars.player.unit().x, Vars.player.unit().y, unit.x, unit.y);
-                if (dist < 100) {
-                    queue.add("[green]Attempting to grab a " + unit.type.localizedName + "...")
-                    lookingForUnit = unit.type;
-                } else {
-                    print(unit + " spawned too far (" + (dist / 8) + " blocks away)");
-                    print(Vars.player.unit().x + "," + Vars.player.unit().y + "|" + unit.x + "," + unit.y);
-                }
-            }
-            scanningUnits.remove(i);
-        }
-    }
 
 
-
-
-    if (lookingForUnit) {
-        Groups.unit.each(cons((e) => {
-            if (e.isAI() && e.team == Vars.player.team() && !e.dead && e.type == lookingForUnit) {
-                stealUnit = false;
-                lookingForUnit = null;
-                Call.unitControl(Vars.player, e);
-            }
-        }));
-    }
     if (glitch) {
         let mv = Vars.control.input.movement;
-        /*
-    	
-        if(mv.len()>0.1 && delayglitch>20){
-            Vars.netClient.setPosition(Vars.player.unit().x+mv.x*10,Vars.player.unit().y+mv.y*10);
-            delayglitch=0;
-        }*/
         Vars.player.unit().vel.x = mv.x * 10;
         Vars.player.unit().vel.y = mv.y * 10;
     }
     delayglitch++;
 
-
     update();
 
     var gridSeq = new Seq();
-
     battery = 0.01;
     stored = 0;
     powerbal = 0;
+
     let tilecons = (c) => {
-        if (!c.build || !c.build.power) { return; }
-        let graph = c.build.power.graph;
+        var build = c;
+        if (build && build.build) build = build.build;
+        if (!build || !build.power) return;
+        let graph = build.power.graph;
+        if (!graph) return;
         if (!gridSeq.contains(graph)) {
             gridSeq.add(graph);
             stored += graph.getBatteryStored();
@@ -1207,12 +797,9 @@ Events.run(Trigger.update, () => {
             powerbal += graph.getPowerBalance();
         }
     };
+
     iterateOver(Vars.indexer.getFlagged(Vars.player.team(), BlockFlag.generator).iterator(), tilecons);
     iterateOver(Vars.indexer.getFlagged(Vars.player.team(), BlockFlag.reactor).iterator(), tilecons);
-
-    //iterateOver(Vars.indexer.getAllied(Vars.player.team(), BlockFlag.generator).iterator(),tilecons);
-    //iterateOver(Vars.indexer.getAllied(Vars.player.team(), BlockFlag.reactor).iterator(),tilecons);
-    //Vars.control.input.useSchematic(Vars.schematics.all().get(5))
 });
 
 var prevmap = "";
@@ -1225,8 +812,6 @@ Events.on(EventType.WorldLoadEvent, e => {
     }
 });
 
-
-
 function update() {
     if (!queue.isEmpty()) {
         if (enabled) {
@@ -1235,26 +820,21 @@ function update() {
                 prevsent = 0;
             }
         } else {
-
             if (Version.build >= 132) {
                 Vars.ui.chatfrag.addMessage("[red]PvP-Alerts: " + queue.pop());
             } else {
                 Vars.ui.chatfrag.addMessage(queue.pop(), "[red]PvP-Alerts");
             }
         }
-
     }
     prevsent += Time.delta;
 
     trackers.each((t) => {
         t.updateTrack();
-    })
-    trackers.filter((t) => {
-        return !t.done;
     });
-
-
+    trackers = trackers.select((t) => { return !t.done; });
 }
+
 var wasCleared = false;
 var allTeams = new Seq();
 
@@ -1265,25 +845,156 @@ function clear() {
     trackers.clear();
     allTeams.clear();
     if (teams) {
-        teams.clear();
+        var keys = Object.keys(teams);
+        for (var i = 0; i < keys.length; i++) {
+            delete teams[keys[i]];
+        }
     }
-    log("debug", "cleared all.");
+    teams = null;
+    blocktrackhandle = null;
+
+    addTrackHandler(BlockTrackHandler.new("graphite", BlockBuildTracker, Blocks.graphitePress, false, {
+        "customText": function(team, block, tile) {
+            return "has started graphite production " + toBlockEmoji(block) + "" + toBlockEmoji(Items.graphite);
+        }
+    }));
+    addTrackHandler(BlockTrackHandler.new("silicon", BlockBuildTracker, Blocks.siliconSmelter, false, {
+        "customText": function(team, block, tile) {
+            return "has started silicon production " + toBlockEmoji(block) + "" + toBlockEmoji(Items.silicon);
+        }
+    }));
+    addTrackHandler(BlockTrackHandler.new("siliconCrucible", BlockBuildTracker, Blocks.siliconCrucible, false, {
+        "customText": function(team, block, tile) {
+            return "has started mass silicon production " + toBlockEmoji(block) + "" + toBlockEmoji(Items.silicon);
+        }
+    }));
+    addTrackHandler(BlockTrackHandler.new("kiln", BlockBuildTracker, Blocks.kiln, false, {
+        "customText": function(team, block, tile) {
+            return "has started metaglass production " + toBlockEmoji(block) + "" + toBlockEmoji(Items.metaglass);
+        }
+    }));
+    addTrackHandler(BlockTrackHandler.new("plast", BlockBuildTracker, Blocks.plastaniumCompressor, false, {
+        "customText": function(team, block, tile) {
+            return "has started plastanium production " + toBlockEmoji(block) + "" + toBlockEmoji(Items.plastanium);
+        }
+    }));
+    addTrackHandler(BlockTrackHandler.new("phase", BlockBuildTracker, Blocks.phaseWeaver, false, {
+        "customText": function(team, block, tile) {
+            return "has started phase production " + toBlockEmoji(block) + "" + toBlockEmoji(Items.phaseFabric);
+        }
+    }));
+    addTrackHandler(BlockTrackHandler.new("surge", BlockBuildTracker, Blocks.surgeSmelter, false, {
+        "customText": function(team, block, tile) {
+            return "has started surge production " + toBlockEmoji(block) + "" + toBlockEmoji(Items.surgeAlloy);
+        }
+    }));
+    addTrackHandler(BlockTrackHandler.new("pyratite", BlockBuildTracker, Blocks.pyratiteMixer, false, {
+        "customText": function(team, block, tile) {
+            return "has started pyratite production " + toBlockEmoji(block) + "" + toBlockEmoji(Items.pyratite);
+        }
+    }));
+    addTrackHandler(BlockTrackHandler.new("blast", BlockBuildTracker, Blocks.blastMixer, false, {
+        "customText": function(team, block, tile) {
+            return "has started blast production " + toBlockEmoji(block) + "" + toBlockEmoji(Items.blastCompound);
+        }
+    }));
+    addTrackHandler(BlockTrackHandler.new("foreshadow", BlockBuildTracker, Blocks.foreshadow, false, {}));
+
+    if (Blocks.siliconArcFurnace) {
+        addTrackHandler(BlockTrackHandler.new("siliconArcFurnace", BlockBuildTracker, Blocks.siliconArcFurnace, false, {
+            "customText": function(team, block, tile) {
+                return "has started silicon production " + toBlockEmoji(block) + "" + toBlockEmoji(Items.silicon);
+            }
+        }));
+        addTrackHandler(BlockTrackHandler.new("carbideCrucible", BlockBuildTracker, Blocks.carbideCrucible, false, {
+            "customText": function(team, block, tile) {
+                return "has started carbide production " + toBlockEmoji(block) + "" + toBlockEmoji(Items.carbide);
+            }
+        }));
+        addTrackHandler(BlockTrackHandler.new("surgeCrucible", BlockBuildTracker, Blocks.surgeCrucible, false, {
+            "customText": function(team, block, tile) {
+                return "has started surge production " + toBlockEmoji(block) + "" + toBlockEmoji(Items.surgeAlloy);
+            }
+        }));
+        addTrackHandler(BlockTrackHandler.new("phaseSynthesizer", BlockBuildTracker, Blocks.phaseSynthesizer, false, {
+            "customText": function(team, block, tile) {
+                return "has started phase production " + toBlockEmoji(block) + "" + toBlockEmoji(Items.phaseFabric);
+            }
+        }));
+        addTrackHandler(BlockTrackHandler.new("cyanogenSynthesizer", BlockBuildTracker, Blocks.cyanogenSynthesizer, false, {
+            "customText": function(team, block, tile) {
+                return "has started cyanogen production " + toBlockEmoji(block);
+            }
+        }));
+        addTrackHandler(BlockTrackHandler.new("electrolyzer", BlockBuildTracker, Blocks.electrolyzer, false, {
+            "customText": function(team, block, tile) {
+                return "has started electrolysis " + toBlockEmoji(block);
+            }
+        }));
+        addTrackHandler(BlockTrackHandler.new("slagCentrifuge", BlockBuildTracker, Blocks.slagCentrifuge, false, {
+            "customText": function(team, block, tile) {
+                return "has started slag centrifuge " + toBlockEmoji(block);
+            }
+        }));
+
+        var erekirDrillEvent = {
+            "customText": function(team, block, tile) {
+                var build = tile.build;
+                var item = build ? build.dominantItem : null;
+                var resName = item ? item.localizedName : "ore";
+                return "has started " + resName + " mining " + toBlockEmoji(block) + (item ? "" + toBlockEmoji(item) : "");
+            }
+        };
+        addTrackHandler(BlockTrackHandler.new("plasmaBore", BlockBuildTracker, Blocks.plasmaBore, false, erekirDrillEvent));
+        addTrackHandler(BlockTrackHandler.new("largePlasmaBore", BlockBuildTracker, Blocks.largePlasmaBore, false, erekirDrillEvent));
+        addTrackHandler(BlockTrackHandler.new("impactDrill", BlockBuildTracker, Blocks.impactDrill, false, erekirDrillEvent));
+        addTrackHandler(BlockTrackHandler.new("eruptionDrill", BlockBuildTracker, Blocks.eruptionDrill, false, erekirDrillEvent));
+    }
+
+    Vars.content.blocks().each((e2) => {
+        if (e2 instanceof UnitFactory) {
+            addTrackHandler(BlockTrackHandler.new(e2.name, BlockBuildTracker, e2, false, {}));
+        }
+        if (e2 instanceof Reconstructor) {
+            addTrackHandler(BlockTrackHandler.new(e2.name, BlockBuildTracker, e2, false, {
+                "customText": function(team, block, tile) {
+                    return "can now make Tier-" + Math.round((block.size + 1) * 0.5) + " units" + toBlockEmoji(block);
+                }
+            }));
+        }
+    });
+
+    var drillEvent = {
+        "customText": function(team, block, tile) {
+            var build = tile.build;
+            var item = build ? build.dominantItem : null;
+            var resName = item ? item.localizedName : "ore";
+            return "has started " + resName + " mining " + toBlockEmoji(block) + (item ? "" + toBlockEmoji(item) : "");
+        }
+    };
+    addTrackHandler(BlockTrackHandler.new("pneumaticDrill", BlockBuildTracker, Blocks.pneumaticDrill, false, drillEvent));
+    addTrackHandler(BlockTrackHandler.new("laserDrill", BlockBuildTracker, Blocks.laserDrill, false, drillEvent));
+    addTrackHandler(BlockTrackHandler.new("blastDrill", BlockBuildTracker, Blocks.blastDrill, false, drillEvent));
+
+    wasCleared = true;
 
     Vars.world.tiles.each((x, y) => {
-        var tile = Vars.world.tile(x, y);
+        var tile = Vars.world.tiles.getn(x, y);
+        if (!tile) return;
         if (tile.team() !== Team.derelict) {
             if (tile.team() !== Vars.player.team() && tile.team().core()) {
-                blocktrackhandle.each((k, v) => {
-                    v.processBuildingEvent(tile.team(), tile);
-                });
+                if (blocktrackhandle) {
+                    var keys2 = Object.keys(blocktrackhandle);
+                    for (var i = 0; i < keys2.length; i++) {
+                        blocktrackhandle[keys2[i]].processBuildingEvent(tile.team(), tile);
+                    }
+                }
             }
             if (!allTeams.contains(tile.team())) {
                 allTeams.add(tile.team());
             }
         }
     });
-    wasCleared = true;
-
 }
 
 Events.on(EventType.BlockBuildBeginEvent, e => {
@@ -1291,9 +1002,10 @@ Events.on(EventType.BlockBuildBeginEvent, e => {
     if (!e.breaking && e.team != Vars.player.team()) {
         getTeamAch(e.team).processBuildingEvent(e.tile);
         if (blocktrackhandle) {
-            blocktrackhandle.each((k, v) => {
-                v.processBuildingEvent(team, e.tile);
-            })
+            var keys = Object.keys(blocktrackhandle);
+            for (var i = 0; i < keys.length; i++) {
+                blocktrackhandle[keys[i]].processBuildingEvent(team, e.tile);
+            }
         }
     }
     if (!allTeams.contains(team)) {
@@ -1301,26 +1013,17 @@ Events.on(EventType.BlockBuildBeginEvent, e => {
     }
 });
 
-
-var stealUnit = false;
-var scanningUnits = new Seq();
-var lookingForUnit = null;
 Events.on(EventType.UnitCreateEvent, e => {
-    print(e.unit.type);
     var team = e.unit.team;
     if (team != Vars.player.team()) {
         getTeamAch(team).processUnitCreateEvent(e.unit.type);
     }
-    scanningUnits.add(e.unit);
-
-
-    //
 });
 
+var anticommandspam = new Seq();
 
-
-const onChat = function (sender, message) {
-    if (sender && sender.includes("Xelo") && message) {
+const onChat = function(sender, message) {
+    if (message) {
         var all = message.split(" ");
         var cmd = all[0];
         switch (cmd) {
@@ -1344,18 +1047,17 @@ const onChat = function (sender, message) {
                 break;
             case "items":
                 if (teams) {
-
-                    teams.each((k, v) => {
+                    var keys = Object.keys(teams);
+                    for (var ki = 0; ki < keys.length; ki++) {
+                        var k = teams[keys[ki]].team;
                         var f = "";
                         k.items().each((item, amount) => {
-                            f += toBlockEmoji(item) + ":" + amount + ","
+                            f += toBlockEmoji(item) + ":" + amount + ",";
                         });
-                        if (f.length == 0) {
-                            return;
-                        }
+                        if (f.length == 0) continue;
                         f = "Team " + chatTeamColor(k) + k.name + "[white]'s items:" + f;
                         queue.add(f);
-                    });
+                    }
                     queue.add("[cyan]Scanning enemy core items..");
                 }
                 break;
@@ -1363,34 +1065,49 @@ const onChat = function (sender, message) {
                 glitch = !glitch;
                 break;
             case "units":
-                if (teams) {
 
-                    allTeams.each((team, achieve) => {
-                        var units = null;
-                        team.data().units.each((unit) => {
-                            if (!unit.type.isCounted) {
-                                return;
-                            }
-                            if (!units) {
-                                units = ObjectMap.of(unit.type, { count: 0 });
-                            }
-                            if (!units.get(unit.type)) {
-                                units.put(unit.type, { count: 0 });
-                            }
-                            units.get(unit.type).count++;
-                        });
-                        var f = (Vars.player.team() == team ? "Your team" : "Team " + chatTeamColor(team) + team.name + "[white]");
-                        if (!units) {
+                var teamUnits = {};
+                try {
+                    var it = Groups.unit.iterator();
+                    var count = 0;
+                    while (it.hasNext()) {
+                        var unit = it.next();
+                        count++;
+                        if (!unit || unit.dead) continue;
+                        var tid = unit.team.id;
+                        if (!teamUnits[tid]) {
+                            teamUnits[tid] = { team: unit.team, counts: {} };
+                        }
+                        var tn = unit.type.name;
+                        if (!teamUnits[tid].counts[tn]) {
+                            teamUnits[tid].counts[tn] = { type: unit.type, count: 0 };
+                        }
+                        teamUnits[tid].counts[tn].count++;
+                    }
+
+                } catch(err) {
+                    print("PvP-Alerts: unit count error: " + err);
+                }
+                var teamKeys = Object.keys(teamUnits);
+                if (teamKeys.length == 0) {
+                    queue.add("[white]No units found");
+                } else {
+                    for (var ti = 0; ti < teamKeys.length; ti++) {
+                        var td = teamUnits[teamKeys[ti]];
+                        var f = (Vars.player.team() == td.team ? "Your team" : "Team " + chatTeamColor(td.team) + td.team.name + "[white]");
+                        var ukeys = Object.keys(td.counts);
+                        if (ukeys.length == 0) {
                             f += "[white] has no units currently";
                         } else {
-                            let uf = "";
-                            units.each((type, countobj) => {
-                                uf += toBlockEmoji(type) + ":" + countobj.count + ", "
-                            });
+                            var uf = "";
+                            for (var ui = 0; ui < ukeys.length; ui++) {
+                                var entry = td.counts[ukeys[ui]];
+                                uf += toBlockEmoji(entry.type) + ":" + entry.count + ", ";
+                            }
                             f += "[white]'s units:" + uf;
                         }
                         queue.add(f);
-                    });
+                    }
                     queue.add("[cyan]Counting enemy units..");
                 }
                 break;
@@ -1398,34 +1115,4 @@ const onChat = function (sender, message) {
     }
 };
 
-global.alerts.onChat = function (msg) { onChat("Xelo", msg); };
-
-
-
-
-/** Find the closest ore block relative to a position. */
-// fail
-function findClosestSand(xp, yp, item) {
-    let tile = Geometry.findClosest(xp, yp, getOrePositions(item));
-
-    if (tile == null) return null;
-
-    for (let x = Math.max(0, tile.x - quadrantSize / 2); x < tile.x + quadrantSize / 2 && x < world.width(); x++) {
-        for (let y = Math.max(0, tile.y - quadrantSize / 2); y < tile.y + quadrantSize / 2 && y < world.height(); y++) {
-            let res = world.tile(x, y);
-            if (res.block() == Blocks.air) {
-                if (res.drop() == item) {
-                    return res;
-                }
-                if (res.drop() == null && item == Items.sand && (res.floor() == Blocks.darksand || res.floor() == Blocks.darksand)) {
-                    return res;
-                }
-
-            }
-
-
-        }
-    }
-
-    return null;
-}
+global.alerts.onChat = function(msg) { onChat(Vars.player ? Vars.player.name : "local", msg); };
