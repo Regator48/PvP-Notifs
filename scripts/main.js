@@ -50,6 +50,8 @@ function getConstructingBlock(tile) {
 }
 
 var eventid = 0;
+var techSummaryTable = null;
+var techSummaryTimer = null;
 
 var btnDragging = false;
 var bDX = 0, bDY = 0;
@@ -474,56 +476,54 @@ Events.on(EventType.ClientLoadEvent,
         }));
         addTrackHandler(BlockTrackHandler.new("foreshadow", BlockBuildTracker, Blocks.foreshadow, false, {}));
 
-        if (Blocks.siliconArcFurnace) {
-            addTrackHandler(BlockTrackHandler.new("siliconArcFurnace", BlockBuildTracker, Blocks.siliconArcFurnace, false, {
-                "customText": function(team, block, tile) {
-                    return "has started silicon production " + toBlockEmoji(block) + "" + toBlockEmoji(Items.silicon);
-                }
-            }));
-            addTrackHandler(BlockTrackHandler.new("carbideCrucible", BlockBuildTracker, Blocks.carbideCrucible, false, {
-                "customText": function(team, block, tile) {
-                    return "has started carbide production " + toBlockEmoji(block) + "" + toBlockEmoji(Items.carbide);
-                }
-            }));
-            addTrackHandler(BlockTrackHandler.new("surgeCrucible", BlockBuildTracker, Blocks.surgeCrucible, false, {
-                "customText": function(team, block, tile) {
-                    return "has started surge production " + toBlockEmoji(block) + "" + toBlockEmoji(Items.surgeAlloy);
-                }
-            }));
-            addTrackHandler(BlockTrackHandler.new("phaseSynthesizer", BlockBuildTracker, Blocks.phaseSynthesizer, false, {
-                "customText": function(team, block, tile) {
-                    return "has started phase production " + toBlockEmoji(block) + "" + toBlockEmoji(Items.phaseFabric);
-                }
-            }));
-            addTrackHandler(BlockTrackHandler.new("cyanogenSynthesizer", BlockBuildTracker, Blocks.cyanogenSynthesizer, false, {
-                "customText": function(team, block, tile) {
-                    return "has started cyanogen production " + toBlockEmoji(block);
-                }
-            }));
-            addTrackHandler(BlockTrackHandler.new("electrolyzer", BlockBuildTracker, Blocks.electrolyzer, false, {
-                "customText": function(team, block, tile) {
-                    return "has started electrolysis " + toBlockEmoji(block);
-                }
-            }));
-            addTrackHandler(BlockTrackHandler.new("slagCentrifuge", BlockBuildTracker, Blocks.slagCentrifuge, false, {
-                "customText": function(team, block, tile) {
-                    return "has started slag centrifuge " + toBlockEmoji(block);
-                }
-            }));
+        addTrackHandler(BlockTrackHandler.new("siliconArcFurnace", BlockBuildTracker, Blocks.siliconArcFurnace, false, {
+            "customText": function(team, block, tile) {
+                return "has started silicon production " + toBlockEmoji(block) + "" + toBlockEmoji(Items.silicon);
+            }
+        }));
+        addTrackHandler(BlockTrackHandler.new("carbideCrucible", BlockBuildTracker, Blocks.carbideCrucible, false, {
+            "customText": function(team, block, tile) {
+                return "has started carbide production " + toBlockEmoji(block) + "" + toBlockEmoji(Items.carbide);
+            }
+        }));
+        addTrackHandler(BlockTrackHandler.new("surgeCrucible", BlockBuildTracker, Blocks.surgeCrucible, false, {
+            "customText": function(team, block, tile) {
+                return "has started surge production " + toBlockEmoji(block) + "" + toBlockEmoji(Items.surgeAlloy);
+            }
+        }));
+        addTrackHandler(BlockTrackHandler.new("phaseSynthesizer", BlockBuildTracker, Blocks.phaseSynthesizer, false, {
+            "customText": function(team, block, tile) {
+                return "has started phase production " + toBlockEmoji(block) + "" + toBlockEmoji(Items.phaseFabric);
+            }
+        }));
+        addTrackHandler(BlockTrackHandler.new("cyanogenSynthesizer", BlockBuildTracker, Blocks.cyanogenSynthesizer, false, {
+            "customText": function(team, block, tile) {
+                return "has started cyanogen production " + toBlockEmoji(block);
+            }
+        }));
+        addTrackHandler(BlockTrackHandler.new("electrolyzer", BlockBuildTracker, Blocks.electrolyzer, false, {
+            "customText": function(team, block, tile) {
+                return "has started electrolysis " + toBlockEmoji(block);
+            }
+        }));
+        addTrackHandler(BlockTrackHandler.new("slagCentrifuge", BlockBuildTracker, Blocks.slagCentrifuge, false, {
+            "customText": function(team, block, tile) {
+                return "has started slag centrifuge " + toBlockEmoji(block);
+            }
+        }));
 
-            var erekirDrillEvent = {
-                "customText": function(team, block, tile) {
-                    var build = tile.build;
-                    var item = build ? build.dominantItem : null;
-                    var resName = item ? item.localizedName : "ore";
-                    return "has started " + resName + " mining " + toBlockEmoji(block) + (item ? "" + toBlockEmoji(item) : "");
-                }
-            };
-            addTrackHandler(BlockTrackHandler.new("plasmaBore", BlockBuildTracker, Blocks.plasmaBore, false, erekirDrillEvent));
-            addTrackHandler(BlockTrackHandler.new("largePlasmaBore", BlockBuildTracker, Blocks.largePlasmaBore, false, erekirDrillEvent));
-            addTrackHandler(BlockTrackHandler.new("impactDrill", BlockBuildTracker, Blocks.impactDrill, false, erekirDrillEvent));
-            addTrackHandler(BlockTrackHandler.new("eruptionDrill", BlockBuildTracker, Blocks.eruptionDrill, false, erekirDrillEvent));
-        }
+        var erekirDrillEvent = {
+            "customText": function(team, block, tile) {
+                var build = tile.build;
+                var item = build ? build.dominantItem : null;
+                var resName = item ? item.localizedName : "ore";
+                return "has started " + resName + " mining " + toBlockEmoji(block) + (item ? "" + toBlockEmoji(item) : "");
+            }
+        };
+        addTrackHandler(BlockTrackHandler.new("plasmaBore", BlockBuildTracker, Blocks.plasmaBore, false, erekirDrillEvent));
+        addTrackHandler(BlockTrackHandler.new("largePlasmaBore", BlockBuildTracker, Blocks.largePlasmaBore, false, erekirDrillEvent));
+        addTrackHandler(BlockTrackHandler.new("impactDrill", BlockBuildTracker, Blocks.impactDrill, false, erekirDrillEvent));
+        addTrackHandler(BlockTrackHandler.new("eruptionDrill", BlockBuildTracker, Blocks.eruptionDrill, false, erekirDrillEvent));
 
         Vars.content.blocks().each((e2) => {
             if (e2 instanceof UnitFactory) {
@@ -564,66 +564,76 @@ Events.on(EventType.ClientLoadEvent,
         var savedBtnX = Core.settings.getInt("pvpnotifs-bx", 4);
         var savedBtnY = Core.settings.getInt("pvpnotifs-by", 4);
 
-        Vars.ui.hudGroup.fill(cons(t => {
-            btnTable = t;
-            let style = Styles.clearTogglei;
-            t.bottom().left().margin(4);
+        var t = new Table();
+        t.background(Styles.black6);
+        t.touchable = Touchable.enabled;
+        t.bottom().left().margin(4);
+        btnTable = t;
 
-            var dragBtn = t.button(Icon.move, Styles.clearNonei, run(() => {
-            })).width(46).height(46).name("drag").tooltip("drag to move").get();
+        var style = Styles.clearTogglei;
 
-            t.button(Icon.units, style, run(() => {
-                onChat(Vars.player ? Vars.player.name : "local", "units");
-            })).width(46).height(46).name("units").tooltip("count enemy units");
+        var dragBtn = t.button(Icon.move, Styles.clearNonei, run(() => {
+        })).width(46).height(46).name("drag").tooltip("drag to move").get();
 
-            t.button(Icon.eyeSmall, style, run(() => {
-                Vars.enableLight = !Vars.enableLight;
-            })).update(b => b.setChecked(Vars.enableLight)).width(46).height(46).name("light").tooltip("toggle lighting");
+        t.button(Icon.units, style, run(() => {
+            onChat(Vars.player ? Vars.player.name : "local", "units");
+        })).width(46).height(46).name("units").tooltip("count enemy units");
 
-            t.button(Icon.refresh, style, run(() => {
-                Call.sendChatMessage("/sync");
-            })).width(46).height(46).name("sync").tooltip("/sync");
+        t.button(Icon.eyeSmall, style, run(() => {
+            Vars.enableLight = !Vars.enableLight;
+        })).update(b => b.setChecked(Vars.enableLight)).width(46).height(46).name("light").tooltip("toggle lighting");
 
-            t.button(Icon.hammer, style, run(() => {
-                Call.sendChatMessage("/vote y");
-            })).width(46).height(46).name("votekick").tooltip("vote y");
+        t.button(Icon.refresh, style, run(() => {
+            Call.sendChatMessage("/sync");
+        })).width(46).height(46).name("sync").tooltip("/sync");
 
-            t.setPosition(savedBtnX, savedBtnY);
+        t.button(Icon.hammer, style, run(() => {
+            Call.sendChatMessage("/vote y");
+        })).width(46).height(46).name("votekick").tooltip("vote y");
 
-            dragBtn.addListener(extend(InputListener, {
-                touchDown: function(event, x, y, pointer, _btn) {
-                    bDX = x;
-                    bDY = y;
-                    btnDragging = true;
-                    event.cancel();
-                    return true;
-                },
-                touchDragged: function(event, x, y, pointer) {
-                    if (btnDragging) {
-                        savedBtnX += x - bDX;
-                        savedBtnY += y - bDY;
-                        bDX = x;
-                        bDY = y;
-                        var sw = Core.graphics.getWidth();
-                        var sh = Core.graphics.getHeight();
-                        var bw = btnTable.getWidth();
-                        var bh = btnTable.getHeight();
-                        if (savedBtnX < 0) savedBtnX = 0;
-                        if (savedBtnY < 0) savedBtnY = 0;
-                        if (savedBtnX + bw > sw) savedBtnX = sw - bw;
-                        if (savedBtnY + bh > sh) savedBtnY = sh - bh;
-                        btnTable.x = savedBtnX;
-                        btnTable.y = savedBtnY;
-                    }
-                },
-                touchUp: function(event, x, y, pointer, _btn) {
-                    if (btnDragging) {
-                        btnDragging = false;
-                        Core.settings.put("pvpnotifs-bx", new java.lang.Integer(Math.round(savedBtnX)));
-                        Core.settings.put("pvpnotifs-by", new java.lang.Integer(Math.round(savedBtnY)));
-                    }
+        t.button(Icon.units, style, run(() => {
+            showTechSummary();
+        })).width(46).height(46).name("techsummary").tooltip("enemy tech summary");
+
+        t.pack();
+        t.setPosition(savedBtnX, savedBtnY);
+        Vars.ui.hudGroup.addChild(t);
+
+        dragBtn.addListener(extend(InputListener, {
+            touchDown: function(event, x, y, pointer, _btn) {
+                bDX = event.stageX;
+                bDY = event.stageY;
+                btnDragging = true;
+                return true;
+            },
+            touchDragged: function(event, x, y, pointer) {
+                if (btnDragging) {
+                    var dx = event.stageX - bDX;
+                    var dy = event.stageY - bDY;
+                    t.moveBy(dx, dy);
+                    var sw = Core.graphics.getWidth();
+                    var sh = Core.graphics.getHeight();
+                    var bw = btnTable.getWidth();
+                    var bh = btnTable.getHeight();
+                    if (t.x < 0) t.x = 0;
+                    if (t.y < 0) t.y = 0;
+                    if (t.x + bw > sw) t.x = sw - bw;
+                    if (t.y + bh > sh) t.y = sh - bh;
+                    savedBtnX = t.x;
+                    savedBtnY = t.y;
+                    bDX = event.stageX;
+                    bDY = event.stageY;
                 }
-            }));
+            },
+            touchUp: function(event, x, y, pointer, _btn) {
+                if (btnDragging) {
+                    btnDragging = false;
+                    savedBtnX = t.x;
+                    savedBtnY = t.y;
+                    Core.settings.put("pvpnotifs-bx", new java.lang.Integer(Math.round(savedBtnX)));
+                    Core.settings.put("pvpnotifs-by", new java.lang.Integer(Math.round(savedBtnY)));
+                }
+            }
         }));
     }));
 
@@ -900,56 +910,54 @@ function clear() {
     }));
     addTrackHandler(BlockTrackHandler.new("foreshadow", BlockBuildTracker, Blocks.foreshadow, false, {}));
 
-    if (Blocks.siliconArcFurnace) {
-        addTrackHandler(BlockTrackHandler.new("siliconArcFurnace", BlockBuildTracker, Blocks.siliconArcFurnace, false, {
-            "customText": function(team, block, tile) {
-                return "has started silicon production " + toBlockEmoji(block) + "" + toBlockEmoji(Items.silicon);
-            }
-        }));
-        addTrackHandler(BlockTrackHandler.new("carbideCrucible", BlockBuildTracker, Blocks.carbideCrucible, false, {
-            "customText": function(team, block, tile) {
-                return "has started carbide production " + toBlockEmoji(block) + "" + toBlockEmoji(Items.carbide);
-            }
-        }));
-        addTrackHandler(BlockTrackHandler.new("surgeCrucible", BlockBuildTracker, Blocks.surgeCrucible, false, {
-            "customText": function(team, block, tile) {
-                return "has started surge production " + toBlockEmoji(block) + "" + toBlockEmoji(Items.surgeAlloy);
-            }
-        }));
-        addTrackHandler(BlockTrackHandler.new("phaseSynthesizer", BlockBuildTracker, Blocks.phaseSynthesizer, false, {
-            "customText": function(team, block, tile) {
-                return "has started phase production " + toBlockEmoji(block) + "" + toBlockEmoji(Items.phaseFabric);
-            }
-        }));
-        addTrackHandler(BlockTrackHandler.new("cyanogenSynthesizer", BlockBuildTracker, Blocks.cyanogenSynthesizer, false, {
-            "customText": function(team, block, tile) {
-                return "has started cyanogen production " + toBlockEmoji(block);
-            }
-        }));
-        addTrackHandler(BlockTrackHandler.new("electrolyzer", BlockBuildTracker, Blocks.electrolyzer, false, {
-            "customText": function(team, block, tile) {
-                return "has started electrolysis " + toBlockEmoji(block);
-            }
-        }));
-        addTrackHandler(BlockTrackHandler.new("slagCentrifuge", BlockBuildTracker, Blocks.slagCentrifuge, false, {
-            "customText": function(team, block, tile) {
-                return "has started slag centrifuge " + toBlockEmoji(block);
-            }
-        }));
+    addTrackHandler(BlockTrackHandler.new("siliconArcFurnace", BlockBuildTracker, Blocks.siliconArcFurnace, false, {
+        "customText": function(team, block, tile) {
+            return "has started silicon production " + toBlockEmoji(block) + "" + toBlockEmoji(Items.silicon);
+        }
+    }));
+    addTrackHandler(BlockTrackHandler.new("carbideCrucible", BlockBuildTracker, Blocks.carbideCrucible, false, {
+        "customText": function(team, block, tile) {
+            return "has started carbide production " + toBlockEmoji(block) + "" + toBlockEmoji(Items.carbide);
+        }
+    }));
+    addTrackHandler(BlockTrackHandler.new("surgeCrucible", BlockBuildTracker, Blocks.surgeCrucible, false, {
+        "customText": function(team, block, tile) {
+            return "has started surge production " + toBlockEmoji(block) + "" + toBlockEmoji(Items.surgeAlloy);
+        }
+    }));
+    addTrackHandler(BlockTrackHandler.new("phaseSynthesizer", BlockBuildTracker, Blocks.phaseSynthesizer, false, {
+        "customText": function(team, block, tile) {
+            return "has started phase production " + toBlockEmoji(block) + "" + toBlockEmoji(Items.phaseFabric);
+        }
+    }));
+    addTrackHandler(BlockTrackHandler.new("cyanogenSynthesizer", BlockBuildTracker, Blocks.cyanogenSynthesizer, false, {
+        "customText": function(team, block, tile) {
+            return "has started cyanogen production " + toBlockEmoji(block);
+        }
+    }));
+    addTrackHandler(BlockTrackHandler.new("electrolyzer", BlockBuildTracker, Blocks.electrolyzer, false, {
+        "customText": function(team, block, tile) {
+            return "has started electrolysis " + toBlockEmoji(block);
+        }
+    }));
+    addTrackHandler(BlockTrackHandler.new("slagCentrifuge", BlockBuildTracker, Blocks.slagCentrifuge, false, {
+        "customText": function(team, block, tile) {
+            return "has started slag centrifuge " + toBlockEmoji(block);
+        }
+    }));
 
-        var erekirDrillEvent = {
-            "customText": function(team, block, tile) {
-                var build = tile.build;
-                var item = build ? build.dominantItem : null;
-                var resName = item ? item.localizedName : "ore";
-                return "has started " + resName + " mining " + toBlockEmoji(block) + (item ? "" + toBlockEmoji(item) : "");
-            }
-        };
-        addTrackHandler(BlockTrackHandler.new("plasmaBore", BlockBuildTracker, Blocks.plasmaBore, false, erekirDrillEvent));
-        addTrackHandler(BlockTrackHandler.new("largePlasmaBore", BlockBuildTracker, Blocks.largePlasmaBore, false, erekirDrillEvent));
-        addTrackHandler(BlockTrackHandler.new("impactDrill", BlockBuildTracker, Blocks.impactDrill, false, erekirDrillEvent));
-        addTrackHandler(BlockTrackHandler.new("eruptionDrill", BlockBuildTracker, Blocks.eruptionDrill, false, erekirDrillEvent));
-    }
+    var erekirDrillEvent = {
+        "customText": function(team, block, tile) {
+            var build = tile.build;
+            var item = build ? build.dominantItem : null;
+            var resName = item ? item.localizedName : "ore";
+            return "has started " + resName + " mining " + toBlockEmoji(block) + (item ? "" + toBlockEmoji(item) : "");
+        }
+    };
+    addTrackHandler(BlockTrackHandler.new("plasmaBore", BlockBuildTracker, Blocks.plasmaBore, false, erekirDrillEvent));
+    addTrackHandler(BlockTrackHandler.new("largePlasmaBore", BlockBuildTracker, Blocks.largePlasmaBore, false, erekirDrillEvent));
+    addTrackHandler(BlockTrackHandler.new("impactDrill", BlockBuildTracker, Blocks.impactDrill, false, erekirDrillEvent));
+    addTrackHandler(BlockTrackHandler.new("eruptionDrill", BlockBuildTracker, Blocks.eruptionDrill, false, erekirDrillEvent));
 
     Vars.content.blocks().each((e2) => {
         if (e2 instanceof UnitFactory) {
@@ -1116,3 +1124,148 @@ const onChat = function(sender, message) {
 };
 
 global.alerts.onChat = function(msg) { onChat(Vars.player ? Vars.player.name : "local", msg); };
+
+function showTechSummary() {
+    if (techSummaryTimer) { techSummaryTimer.cancel(); techSummaryTimer = null; }
+    if (techSummaryTable) {
+        techSummaryTable.remove();
+        techSummaryTable = null;
+    }
+
+    var materialBlocks = [
+        {item: Items.graphite, blocks: [Blocks.graphitePress]},
+        {item: Items.silicon, blocks: [Blocks.siliconSmelter, Blocks.siliconCrucible, Blocks.siliconArcFurnace]},
+        {item: Items.metaglass, blocks: [Blocks.kiln]},
+        {item: Items.plastanium, blocks: [Blocks.plastaniumCompressor]},
+        {item: Items.phaseFabric, blocks: [Blocks.phaseWeaver, Blocks.phaseSynthesizer]},
+        {item: Items.surgeAlloy, blocks: [Blocks.surgeSmelter, Blocks.surgeCrucible]},
+        {item: Items.carbide, blocks: [Blocks.carbideCrucible]},
+        {item: Items.pyratite, blocks: [Blocks.pyratiteMixer]},
+        {item: Items.blastCompound, blocks: [Blocks.blastMixer]}
+    ];
+
+    var keyBlocks = [
+        Blocks.foreshadow,
+        Blocks.spectre,
+        Blocks.meltdown,
+        Blocks.cyclone,
+        Blocks.fuse
+    ];
+
+    var teamData = {};
+
+    Vars.world.tiles.each(function(x, y) {
+        var tile = Vars.world.tiles.getn(x, y);
+        if (!tile || !tile.build) return;
+        var team = tile.team();
+        if (!team || team == Team.derelict) return;
+        var tid = team.id;
+        if (!teamData[tid]) {
+            teamData[tid] = {team: team, materials: {}, keyBuildings: {}, unitCounts: {}};
+        }
+        var block = tile.build.block;
+        for (var mi = 0; mi < materialBlocks.length; mi++) {
+            for (var bi = 0; bi < materialBlocks[mi].blocks.length; bi++) {
+                if (block == materialBlocks[mi].blocks[bi]) {
+                    teamData[tid].materials[materialBlocks[mi].item.name] = materialBlocks[mi].item;
+                }
+            }
+        }
+        for (var ki = 0; ki < keyBlocks.length; ki++) {
+            if (block == keyBlocks[ki]) {
+                teamData[tid].keyBuildings[block.name] = block;
+            }
+        }
+    });
+
+    try {
+        var it = Groups.unit.iterator();
+        while (it.hasNext()) {
+            var u = it.next();
+            if (!u || u.dead) continue;
+            var tid = u.team.id;
+            if (!teamData[tid]) {
+                teamData[tid] = {team: u.team, materials: {}, keyBuildings: {}, unitCounts: {}};
+            }
+            var tn = u.type.name;
+            if (!teamData[tid].unitCounts[tn]) {
+                teamData[tid].unitCounts[tn] = {type: u.type, count: 0};
+            }
+            teamData[tid].unitCounts[tn].count++;
+        }
+    } catch(err) {}
+
+    var t = new Table(Tex.button);
+    t.update(function() { if (Vars.state.isMenu()) { if (techSummaryTimer) { techSummaryTimer.cancel(); techSummaryTimer = null; } t.remove(); techSummaryTable = null; } });
+    t.margin(12);
+    t.add("[gold]Team Tech Summary");
+    t.row();
+
+    var teamIds = Object.keys(teamData);
+    if (teamIds.length == 0) {
+        t.add("[gray]No teams detected.");
+    } else {
+        for (var ti = 0; ti < teamIds.length; ti++) {
+            var td = teamData[teamIds[ti]];
+            var tm = td.team;
+            var isPlayer = (tm == Vars.player.team());
+            var prefix = isPlayer ? "[white]Your team" : "[#" + tm.color.toString() + "]" + tm.name + "[white]";
+            t.add(prefix);
+            t.row();
+
+            var matLine = "[gray]Materials: ";
+            var matKeys = Object.keys(td.materials);
+            if (matKeys.length == 0) {
+                matLine += "[darkgray]none";
+            } else {
+                for (var mi = 0; mi < materialBlocks.length; mi++) {
+                    var has = td.materials[materialBlocks[mi].item.name] != null;
+                    matLine += (has ? "[green]+" : "[darkgray]-") + "[white]" + toBlockEmoji(materialBlocks[mi].item);
+                }
+            }
+            t.add(matLine);
+            t.row();
+
+            var bLine = "[gray]Buildings: ";
+            var bkKeys = Object.keys(td.keyBuildings);
+            if (bkKeys.length == 0) {
+                bLine += "[darkgray]none";
+            } else {
+                for (var bi = 0; bi < keyBlocks.length; bi++) {
+                    var has = td.keyBuildings[keyBlocks[bi].name] != null;
+                    bLine += (has ? "[green]+" : "[darkgray]-") + "[white]" + toBlockEmoji(keyBlocks[bi]);
+                }
+            }
+            t.add(bLine);
+            t.row();
+
+            var uKeys = Object.keys(td.unitCounts);
+            if (uKeys.length > 0) {
+                var uLine = "[gray]Units: ";
+                for (var ui = 0; ui < uKeys.length; ui++) {
+                    var entry = td.unitCounts[uKeys[ui]];
+                    uLine += toBlockEmoji(entry.type) + ":" + entry.count + " ";
+                }
+                t.add(uLine);
+                t.row();
+            }
+        }
+    }
+    t.pack();
+    var c = Core.scene.table();
+    c.margin(10);
+    c.add(t);
+    c.pack();
+    c.setPosition(4, (Core.graphics.getHeight() - c.getPrefHeight()) / 2);
+    techSummaryTable = c;
+
+    techSummaryTimer = Timer.schedule(java.lang.Runnable({
+        run: function() {
+            if (techSummaryTable) {
+                techSummaryTable.remove();
+                techSummaryTable = null;
+            }
+            techSummaryTimer = null;
+        }
+    }), 4);
+}
