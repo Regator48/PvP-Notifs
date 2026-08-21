@@ -572,17 +572,33 @@ Events.on(EventType.ClientLoadEvent,
             Call.sendChatMessage("/sync");
         })).width(46).height(46).name("sync").tooltip("/sync");
 
-        t.button(Icon.hammer, style, run(() => {
-            Call.sendChatMessage("/vote y");
-        })).width(46).height(46).name("votekick").tooltip("vote y");
+        var voteBtn = t.button(Icon.hammer, style).width(46).height(46).name("votekick").tooltip("vote y (right-click to edit)").get();
+        voteBtn.addListener(extend(InputListener, {
+            touchDown: function(event, x, y, pointer, button) {
+                if (button == 1) {
+                    showVoteEditor();
+                    return true;
+                }
+                Call.sendChatMessage(Core.settings.getString("pvpnotifs-vote", "/vote y"));
+                return false;
+            }
+        }));
 
         t.button(Icon.units, style, run(() => {
             showTechSummary();
         })).width(46).height(46).name("techsummary").tooltip("enemy tech summary");
 
-        t.button(Icon.settings, style, run(() => {
-            checkForUpdates();
-        })).width(46).height(46).name("update").tooltip("check for updates");
+        var updateBtn = t.button(Icon.settings, style).width(46).height(46).name("update").tooltip("check for updates (right-click to edit URL)").get();
+        updateBtn.addListener(extend(InputListener, {
+            touchDown: function(event, x, y, pointer, button) {
+                if (button == 1) {
+                    showUpdateUrlEditor();
+                    return true;
+                }
+                checkForUpdates();
+                return false;
+            }
+        }));
 
         t.pack();
         t.setPosition(savedBtnX, savedBtnY);
@@ -1291,6 +1307,63 @@ function jsonField(json, key) {
     return json.substring(q1 + 1, q2);
 }
 
+function getUpdateUrls(repo) {
+    var custom = "";
+    try {
+        custom = Core.settings.getString("pvpnotifs-updateurl", "").trim();
+    } catch (e) {}
+    if (custom.length > 0) return [custom];
+    return [
+        "https://raw.githubusercontent.com/" + repo + "/main/mod.json",
+        "https://raw.githubusercontent.com/" + repo + "/v159/mod.json"
+    ];
+}
+
+function showVoteEditor() {
+    var cur = "";
+    try {
+        cur = Core.settings.getString("pvpnotifs-vote", "/vote y");
+    } catch (e) {}
+    var dialog = new BaseDialog("Edit Vote Command");
+    dialog.addCloseButton();
+    dialog.cont.add("Text sent when Vote button is clicked:").pad(5).row();
+    dialog.cont.field(cur, function(text) {
+        Core.settings.put("pvpnotifs-vote", text);
+    }).width(320);
+    dialog.cont.row();
+    dialog.cont.button("Reset", function() {
+        Core.settings.put("pvpnotifs-vote", "/vote y");
+        dialog.hide();
+    }).width(120).color(Color.gray);
+    dialog.cont.button("Done", function() {
+        dialog.hide();
+    }).width(120);
+    dialog.show();
+}
+
+function showUpdateUrlEditor() {
+    var cur = "";
+    try {
+        cur = Core.settings.getString("pvpnotifs-updateurl", "");
+    } catch (e) {}
+    var dialog = new BaseDialog("Edit Update URL");
+    dialog.addCloseButton();
+    dialog.cont.add("Direct URL to a mod.json (mirror to bypass GF / 403).").pad(5).row();
+    dialog.cont.add("Leave empty to use the default GitHub raw URLs.").pad(5).row();
+    dialog.cont.field(cur, function(text) {
+        Core.settings.put("pvpnotifs-updateurl", text.trim());
+    }).width(420);
+    dialog.cont.row();
+    dialog.cont.button("Reset", function() {
+        Core.settings.put("pvpnotifs-updateurl", "");
+        dialog.hide();
+    }).width(120).color(Color.gray);
+    dialog.cont.button("Done", function() {
+        dialog.hide();
+    }).width(120);
+    dialog.show();
+}
+
 function checkForUpdates() {
     var currentVersion = "1.0.0";
     try {
@@ -1299,10 +1372,7 @@ function checkForUpdates() {
     } catch (e) {}
 
     var repo = "Regator48/PvP-Notifs";
-    var urls = [
-        "https://raw.githubusercontent.com/" + repo + "/main/mod.json",
-        "https://raw.githubusercontent.com/" + repo + "/v159/mod.json"
-    ];
+    var urls = getUpdateUrls(repo);
 
     var tryNext = function(i) {
         if (i >= urls.length) {
