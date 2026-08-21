@@ -572,14 +572,15 @@ Events.on(EventType.ClientLoadEvent,
             Call.sendChatMessage("/sync");
         })).width(46).height(46).name("sync").tooltip("/sync");
 
-        var voteBtn = t.button(Icon.hammer, style).width(46).height(46).name("votekick").tooltip("vote y (right-click to edit)").get();
+        var voteBtn = t.button(Icon.hammer, style, run(() => {
+            Call.sendChatMessage(Core.settings.getString("pvpnotifs-vote", "/vote y"));
+        })).width(46).height(46).name("votekick").tooltip("vote y (right-click to edit)").get();
         voteBtn.addListener(extend(InputListener, {
             touchDown: function(event, x, y, pointer, button) {
                 if (button == 1) {
                     showVoteEditor();
                     return true;
                 }
-                Call.sendChatMessage(Core.settings.getString("pvpnotifs-vote", "/vote y"));
                 return false;
             }
         }));
@@ -588,14 +589,15 @@ Events.on(EventType.ClientLoadEvent,
             showTechSummary();
         })).width(46).height(46).name("techsummary").tooltip("enemy tech summary");
 
-        var updateBtn = t.button(Icon.settings, style).width(46).height(46).name("update").tooltip("check for updates (right-click to edit URL)").get();
+        var updateBtn = t.button(Icon.settings, style, run(() => {
+            checkForUpdates();
+        })).width(46).height(46).name("update").tooltip("check for updates (right-click to edit URL)").get();
         updateBtn.addListener(extend(InputListener, {
             touchDown: function(event, x, y, pointer, button) {
                 if (button == 1) {
                     showUpdateUrlEditor();
                     return true;
                 }
-                checkForUpdates();
                 return false;
             }
         }));
