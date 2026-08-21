@@ -1380,6 +1380,43 @@ function getZipUrl() {
     return "https://codeload.github.com/" + getRepo() + "/zip/refs/heads/" + getBranch();
 }
 
+function getGitee() {
+    try {
+        var g = Core.settings.getString("pvpnotifs-gitee", "").trim();
+        if (g.length > 0) return g;
+    } catch (e) {}
+    return "";
+}
+
+function getGiteeRawUrl() {
+    var g = getGitee();
+    if (g.length == 0) return "";
+    return "https://gitee.com/" + g + "/raw/" + getBranch() + "/mod.json";
+}
+
+function getGiteeCommitsUrl() {
+    var g = getGitee();
+    if (g.length == 0) return "";
+    return "https://gitee.com/api/v5/repos/" + g + "/commits?sha=" + getBranch() + "&per_page=1";
+}
+
+function getGiteeZipUrl() {
+    var g = getGitee();
+    if (g.length == 0) return "";
+    return "https://gitee.com/" + g + "/repository/archive/" + getBranch() + ".zip";
+}
+
+function httpGetFallback(url, fallbackUrl, onResult, onError) {
+    Http.get(url).header("User-Agent", "PvP-Notifs").error(function(e) {
+        if (fallbackUrl && fallbackUrl.length > 0) {
+            Log.warn("Primary update URL failed, trying Gitee mirror: " + fallbackUrl);
+            Http.get(fallbackUrl).header("User-Agent", "PvP-Notifs").error(onError).submit(onResult);
+        } else {
+            onError(e);
+        }
+    }).submit(onResult);
+}
+
 function showVoteEditor() {
     var cur = "";
     try {
@@ -1420,7 +1457,7 @@ function showUpdateConfig() {
         stableBtn.setColor(beta ? Color.gray : Color.green);
         betaBtn.setColor(beta ? Color.green : Color.gray);
     };
-    d.cont.add("Track: ").left().padRight(8);
+    d.cont.add("Track:").left().padTop(8).row();
     stableBtn = d.cont.button("Stable (release)", function() {
         beta = false;
         rebuild();
@@ -1450,12 +1487,19 @@ function showUpdateConfig() {
     d.cont.add("Zip URL (beta download, mirror):").padTop(4).row();
     d.cont.add(zipField).width(440).row();
 
+    var giteeField = new TextField(getGitee());
+    giteeField.setMaxLength(80);
+    d.cont.add("[gray]Gitee repo (optional, auto-fallback if GitHub is blocked):").padTop(8).row();
+    d.cont.add("e.g. Regator48/PvP-Notifs  ->  [white]leave empty if unused").row();
+    d.cont.add(giteeField).width(440).row();
+
     d.cont.button("Save", function() {
         Core.settings.put("pvpnotifs-branch", branchField.getText().trim());
         Core.settings.put("pvpnotifs-beta", beta);
         Core.settings.put("pvpnotifs-rawurl", rawField.getText().trim());
         Core.settings.put("pvpnotifs-commitsurl", commitsField.getText().trim());
         Core.settings.put("pvpnotifs-zipurl", zipField.getText().trim());
+        Core.settings.put("pvpnotifs-gitee", giteeField.getText().trim());
         d.hide();
         checkForUpdates();
     }).width(120);
@@ -1465,6 +1509,7 @@ function showUpdateConfig() {
         Core.settings.put("pvpnotifs-rawurl", "");
         Core.settings.put("pvpnotifs-commitsurl", "");
         Core.settings.put("pvpnotifs-zipurl", "");
+        Core.settings.put("pvpnotifs-gitee", "");
         d.hide();
     }).width(120).color(Color.gray);
     d.show();
@@ -1473,10 +1518,7 @@ function showUpdateConfig() {
 function downloadAndReplace() {
     var zipUrl = getZipUrl();
     Vars.ui.showInfoToast("Downloading update (" + getBranch() + ") ...", 4);
-    Http.get(zipUrl).error(function(e) {
-        Log.err("Update download failed", e);
-        Vars.ui.showErrorMessage("Download failed: " + ((e && e.getMessage) ? e.getMessage() : e));
-    }).submit(function(response) {
+    httpGetFallback(zipUrl, getGiteeZipUrl(), function(response) {
         try {
             var bytes = response.getResult();
             var mod = Vars.mods.getMod("PvP-Alerts");
@@ -1511,6 +1553,9 @@ function downloadAndReplace() {
             Log.err("Update extract failed", err);
             Vars.ui.showErrorMessage("Extract failed: " + err);
         }
+    }, function(e) {
+        Log.err("Update download failed", e);
+        Vars.ui.showErrorMessage("Download failed: " + ((e && e.getMessage) ? e.getMessage() : e));
     });
 }
 
@@ -1526,10 +1571,7 @@ function checkForUpdates() {
 
     if (beta) {
         var curl = getCommitsUrl();
-        Http.get(curl).header("User-Agent", "PvP-Notifs").error(function(e) {
-            Log.warn("Beta update check failed", e);
-            Vars.ui.showErrorMessage("Update check failed: " + ((e && e.getMessage) ? e.getMessage() : e));
-        }).submit(function(response) {
+        httpGetFallback(curl, getGiteeCommitsUrl(), function(response) {
             try {
                 var data = JSON.parse(response.getResultAsString());
                 var sha = null;
@@ -1566,15 +1608,15 @@ function checkForUpdates() {
                 Log.err("Beta update parse failed", err);
                 Vars.ui.showErrorMessage("Could not read commit info.");
             }
+        }, function(e) {
+            Log.warn("Beta update check failed", e);
+            Vars.ui.showErrorMessage("Update check failed: " + ((e && e.getMessage) ? e.getMessage() : e));
         });
         return;
     }
 
     var url = getRawUrl();
-    Http.get(url).header("User-Agent", "PvP-Notifs").error(function(e) {
-        Log.warn("Update check failed", e);
-        Vars.ui.showErrorMessage("Update check failed: " + ((e && e.getMessage) ? e.getMessage() : e));
-    }).submit(function(response) {
+    httpGetFallback(url, getGiteeRawUrl(), function(response) {
         var json = response.getResultAsString();
         var latestVersion = jsonField(json, "version");
         Core.app.post(function() {
@@ -1600,5 +1642,8 @@ function checkForUpdates() {
             }
             dialog.show();
         });
+    }, function(e) {
+        Log.warn("Update check failed", e);
+        Vars.ui.showErrorMessage("Update check failed: " + ((e && e.getMessage) ? e.getMessage() : e));
     });
 }
