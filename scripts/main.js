@@ -1527,10 +1527,12 @@ function showUpdateConfig() {
 
 function findModDir() {
     try {
-        var list = Vars.mods.all();
+        var list = Vars.mods.orderedItems();
         for (var i = 0; i < list.size; i++) {
             var m = list.get(i);
-            if (m && m.name == "PvP-Alerts") {
+            if (!m) continue;
+            var nm = (m.name != null) ? ("" + m.name) : "";
+            if (nm.toLowerCase().indexOf("pvp") >= 0) {
                 var f = m.file;
                 if (f && f.exists()) {
                     return f.isDirectory() ? f : f.parent();
@@ -1538,6 +1540,24 @@ function findModDir() {
             }
         }
     } catch (e) {}
+    try {
+        var md = Vars.modDirectory;
+        if (md && md.exists()) {
+            var ch = md.children();
+            for (var j = 0; j < ch.size; j++) {
+                var c = ch.get(j);
+                if (!c || !c.isDirectory()) continue;
+                var mj = c.child("mod.json");
+                if (mj.exists()) {
+                    try {
+                        var n = jsonField(mj.readString(), "name");
+                        if (n && ("" + n).toLowerCase().indexOf("pvp") >= 0) return c;
+                    } catch (e2) {}
+                }
+                if (c.name().toLowerCase().indexOf("pvp") >= 0) return c;
+            }
+        }
+    } catch (e3) {}
     return null;
 }
 
