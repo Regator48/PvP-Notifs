@@ -1176,11 +1176,21 @@ function rebuildTechSummary(t) {
     ];
 
     var keyBlocks = [
-        Blocks.foreshadow,
-        Blocks.spectre,
-        Blocks.meltdown,
+        Blocks.ripple,
+        Blocks.breach,
+        Blocks.flame,
+        Blocks.cryo,
+        Blocks.fuse,
+        Blocks.pointDefense,
         Blocks.cyclone,
-        Blocks.fuse
+        Blocks.segment,
+        Blocks.parallax,
+        Blocks.smite,
+        Blocks.meltdown,
+        Blocks.spectre,
+        Blocks.titan,
+        Blocks.fortress,
+        Blocks.foreshadow
     ];
 
     var teamData = {};
