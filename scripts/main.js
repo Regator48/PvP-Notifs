@@ -1522,19 +1522,18 @@ function showUpdateConfig() {
     d.show();
 }
 
-function findModDir() {
+function findModFile() {
+    try {
+        var m1 = Vars.mods.getMod("PvP-Alerts");
+        if (m1 && m1.file && m1.file.exists()) return m1.file;
+    } catch (e) {}
     try {
         var list = Vars.mods.orderedItems();
         for (var i = 0; i < list.size; i++) {
             var m = list.get(i);
             if (!m) continue;
-            var nm = (m.name != null) ? ("" + m.name) : "";
-            if (nm.toLowerCase().indexOf("pvp") >= 0) {
-                var f = m.file;
-                if (f && f.exists()) {
-                    return f.isDirectory() ? f : f.parent();
-                }
-            }
+            var nm = (m.name != null) ? ("" + m.name).toLowerCase() : "";
+            if (nm.indexOf("pvp") >= 0 && m.file && m.file.exists()) return m.file;
         }
     } catch (e) {}
     try {
@@ -1543,15 +1542,7 @@ function findModDir() {
             var ch = md.children();
             for (var j = 0; j < ch.size; j++) {
                 var c = ch.get(j);
-                if (!c || !c.isDirectory()) continue;
-                var mj = c.child("mod.json");
-                if (mj.exists()) {
-                    try {
-                        var n = jsonField(mj.readString(), "name");
-                        if (n && ("" + n).toLowerCase().indexOf("pvp") >= 0) return c;
-                    } catch (e2) {}
-                }
-                if (c.name().toLowerCase().indexOf("pvp") >= 0) return c;
+                if (c && c.name().toLowerCase().indexOf("pvp") >= 0) return c;
             }
         }
     } catch (e3) {}
@@ -1564,31 +1555,62 @@ function downloadAndReplace() {
     httpGetFallback(zipUrl, getGiteeZipUrl(), function(response) {
         try {
             var bytes = response.getResult();
-            var modDir = findModDir();
-            if (!modDir || !modDir.exists()) throw new Error("Cannot locate mod folder for PvP-Alerts");
-            var zis = new java.util.zip.ZipInputStream(new java.io.ByteArrayInputStream(bytes));
-            var entry;
-            var topLen = -1;
-            while ((entry = zis.getNextEntry()) != null) {
-                var name = entry.getName();
-                if (topLen < 0) {
-                    var slash = name.indexOf("/");
-                    topLen = (slash >= 0) ? slash + 1 : 0;
+            var modFile = findModFile();
+            if (!modFile || !modFile.exists()) throw new Error("Cannot locate mod file for PvP-Alerts");
+            if (modFile.isDirectory()) {
+                var zis = new java.util.zip.ZipInputStream(new java.io.ByteArrayInputStream(bytes));
+                var entry;
+                var topLen = -1;
+                while ((entry = zis.getNextEntry()) != null) {
+                    var name = entry.getName();
+                    if (topLen < 0) {
+                        var slash = name.indexOf("/");
+                        topLen = (slash >= 0) ? slash + 1 : 0;
+                    }
+                    var rel = name.substring(topLen);
+                    zis.closeEntry();
+                    if (rel.length == 0) continue;
+                    var out = modFile.child(rel);
+                    if (entry.isDirectory()) {
+                        out.mkdirs();
+                    } else {
+                        if (out.parent() != null) out.parent().mkdirs();
+                        var os = out.write(false);
+                        arc.util.io.Streams.copy(zis, os);
+                        os.close();
+                    }
                 }
-                var rel = name.substring(topLen);
-                zis.closeEntry();
-                if (rel.length == 0) continue;
-                var out = modDir.child(rel);
-                if (entry.isDirectory()) {
-                    out.mkdirs();
-                } else {
-                    if (out.parent() != null) out.parent().mkdirs();
-                    var os = out.write(false);
-                    arc.util.io.Streams.copy(zis, os);
-                    os.close();
+                zis.close();
+            } else {
+                var baos = new java.io.ByteArrayOutputStream();
+                var zos = new java.util.zip.ZipOutputStream(baos);
+                var zis = new java.util.zip.ZipInputStream(new java.io.ByteArrayInputStream(bytes));
+                var buf = java.lang.reflect.Array.newInstance(java.lang.Byte.TYPE, 8192);
+                var entry;
+                var topLen = -1;
+                while ((entry = zis.getNextEntry()) != null) {
+                    var name = entry.getName();
+                    if (topLen < 0) {
+                        var slash = name.indexOf("/");
+                        topLen = (slash >= 0) ? slash + 1 : 0;
+                    }
+                    var rel = name.substring(topLen);
+                    if (rel.length == 0 || entry.isDirectory()) {
+                        zis.closeEntry();
+                        continue;
+                    }
+                    zos.putNextEntry(new java.util.zip.ZipEntry(rel));
+                    var len;
+                    while ((len = zis.read(buf)) > 0) {
+                        zos.write(buf, 0, len);
+                    }
+                    zos.closeEntry();
+                    zis.closeEntry();
                 }
+                zis.close();
+                zos.close();
+                modFile.writeBytes(baos.toByteArray());
             }
-            zis.close();
             Vars.ui.showInfoToast("Update applied! Restart Mindustry to load it.", 6);
         } catch (err) {
             Log.err("Update extract failed", err);
