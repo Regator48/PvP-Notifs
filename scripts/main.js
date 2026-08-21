@@ -572,16 +572,15 @@ Events.on(EventType.ClientLoadEvent,
             Call.sendChatMessage("/sync");
         })).width(46).height(46).name("sync").tooltip("/sync");
 
-        var voteBtn = t.button(Icon.hammer, style, run(() => {
-            Call.sendChatMessage(Core.settings.getString("pvpnotifs-vote", "/vote y"));
-        })).width(46).height(46).name("votekick").tooltip("vote y (right-click to edit)").get();
+        var voteBtn = t.button(Icon.hammer, style, run(() => {})).width(46).height(46).name("votekick").tooltip("vote y (right-click to edit)").get();
         voteBtn.addListener(extend(InputListener, {
             touchDown: function(event, x, y, pointer, button) {
-                if (button == 1) {
+                if (button == 1 || button == 2) {
                     showVoteEditor();
-                    return true;
+                } else {
+                    Call.sendChatMessage(Core.settings.getString("pvpnotifs-vote", "/vote y"));
                 }
-                return false;
+                return true;
             }
         }));
 
@@ -589,16 +588,15 @@ Events.on(EventType.ClientLoadEvent,
             showTechSummary();
         })).width(46).height(46).name("techsummary").tooltip("enemy tech summary");
 
-        var updateBtn = t.button(Icon.settings, style, run(() => {
-            checkForUpdates();
-        })).width(46).height(46).name("update").tooltip("check for updates (right-click to edit URL)").get();
+        var updateBtn = t.button(Icon.settings, style, run(() => {})).width(46).height(46).name("update").tooltip("check for updates (right-click to edit URL)").get();
         updateBtn.addListener(extend(InputListener, {
             touchDown: function(event, x, y, pointer, button) {
-                if (button == 1) {
+                if (button == 1 || button == 2) {
                     showUpdateUrlEditor();
-                    return true;
+                } else {
+                    checkForUpdates();
                 }
-                return false;
+                return true;
             }
         }));
 
@@ -1329,17 +1327,17 @@ function showVoteEditor() {
     var dialog = new BaseDialog("Edit Vote Command");
     dialog.addCloseButton();
     dialog.cont.add("Text sent when Vote button is clicked:").pad(5).row();
-    dialog.cont.field(cur, function(text) {
-        Core.settings.put("pvpnotifs-vote", text);
-    }).width(320);
-    dialog.cont.row();
+    var tf = new TextField(cur);
+    tf.setMaxLength(200);
+    dialog.cont.add(tf).width(320).row();
+    dialog.cont.button("Save", function() {
+        Core.settings.put("pvpnotifs-vote", tf.getText());
+        dialog.hide();
+    }).width(120);
     dialog.cont.button("Reset", function() {
         Core.settings.put("pvpnotifs-vote", "/vote y");
         dialog.hide();
     }).width(120).color(Color.gray);
-    dialog.cont.button("Done", function() {
-        dialog.hide();
-    }).width(120);
     dialog.show();
 }
 
@@ -1352,17 +1350,17 @@ function showUpdateUrlEditor() {
     dialog.addCloseButton();
     dialog.cont.add("Direct URL to a mod.json (mirror to bypass GF / 403).").pad(5).row();
     dialog.cont.add("Leave empty to use the default GitHub raw URLs.").pad(5).row();
-    dialog.cont.field(cur, function(text) {
-        Core.settings.put("pvpnotifs-updateurl", text.trim());
-    }).width(420);
-    dialog.cont.row();
+    var tf = new TextField(cur);
+    tf.setMaxLength(500);
+    dialog.cont.add(tf).width(420).row();
+    dialog.cont.button("Save", function() {
+        Core.settings.put("pvpnotifs-updateurl", tf.getText().trim());
+        dialog.hide();
+    }).width(120);
     dialog.cont.button("Reset", function() {
         Core.settings.put("pvpnotifs-updateurl", "");
         dialog.hide();
     }).width(120).color(Color.gray);
-    dialog.cont.button("Done", function() {
-        dialog.hide();
-    }).width(120);
     dialog.show();
 }
 
