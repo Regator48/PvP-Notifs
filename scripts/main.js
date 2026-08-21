@@ -1115,12 +1115,9 @@ const onChat = function(sender, message) {
 
 global.alerts.onChat = function(msg) { onChat(Vars.player ? Vars.player.name : "local", msg); };
 
-function showTechSummary() {
-    if (techSummaryTimer) { techSummaryTimer.cancel(); techSummaryTimer = null; }
-    if (techSummaryTable) {
-        techSummaryTable.remove();
-        techSummaryTable = null;
-    }
+function rebuildTechSummary(t) {
+    t.clear();
+    t.add("[gold]Team Tech Summary (live)").row();
 
     var materialBlocks = [
         {item: Items.graphite, blocks: [Blocks.graphitePress]},
@@ -1185,95 +1182,111 @@ function showTechSummary() {
         }
     } catch(err) {}
 
-    var t = new Table(Tex.button);
-    t.update(function() { if (Vars.state.isMenu()) { if (techSummaryTimer) { techSummaryTimer.cancel(); techSummaryTimer = null; } t.remove(); techSummaryTable = null; } });
-    t.margin(12);
-    t.add("[gold]Team Tech Summary");
-    t.row();
-
     var teamIds = Object.keys(teamData);
     if (teamIds.length == 0) {
         t.add("[gray]No teams detected.");
-    } else {
-        for (var ti = 0; ti < teamIds.length; ti++) {
-            var td = teamData[teamIds[ti]];
-            var tm = td.team;
-            var isPlayer = (tm == Vars.player.team());
-            var prefix = isPlayer ? "[white]Your team" : "[#" + tm.color.toString() + "]" + tm.name + "[white]";
-            t.add(prefix);
-            t.row();
+        return;
+    }
+    for (var ti = 0; ti < teamIds.length; ti++) {
+        var td = teamData[teamIds[ti]];
+        var tm = td.team;
+        var isPlayer = (tm == Vars.player.team());
+        var prefix = isPlayer ? "[white]Your team" : "[#" + tm.color.toString() + "]" + tm.name + "[white]";
+        t.add(prefix);
+        t.row();
 
-            var matLine = "[gray]Materials: ";
-            var matKeys = Object.keys(td.materials);
-            if (matKeys.length == 0) {
-                matLine += "[darkgray]none";
-            } else {
-                for (var mi = 0; mi < materialBlocks.length; mi++) {
-                    var has = td.materials[materialBlocks[mi].item.name] != null;
-                    matLine += (has ? "[green]+" : "[darkgray]-") + "[white]" + toBlockEmoji(materialBlocks[mi].item);
-                }
-            }
-            t.add(matLine);
-            t.row();
-
-            var bLine = "[gray]Buildings: ";
-            var bkKeys = Object.keys(td.keyBuildings);
-            if (bkKeys.length == 0) {
-                bLine += "[darkgray]none";
-            } else {
-                for (var bi = 0; bi < keyBlocks.length; bi++) {
-                    var has = td.keyBuildings[keyBlocks[bi].name] != null;
-                    bLine += (has ? "[green]+" : "[darkgray]-") + "[white]" + toBlockEmoji(keyBlocks[bi]);
-                }
-            }
-            t.add(bLine);
-            t.row();
-
-            var uKeys = Object.keys(td.unitCounts);
-            if (uKeys.length > 0) {
-                var uLine = "[gray]Units: ";
-                for (var ui = 0; ui < uKeys.length; ui++) {
-                    var entry = td.unitCounts[uKeys[ui]];
-                    uLine += toBlockEmoji(entry.type) + ":" + entry.count + " ";
-                }
-                t.add(uLine);
-                t.row();
+        var matLine = "[gray]Materials: ";
+        var matKeys = Object.keys(td.materials);
+        if (matKeys.length == 0) {
+            matLine += "[darkgray]none";
+        } else {
+            for (var mi = 0; mi < materialBlocks.length; mi++) {
+                var has = td.materials[materialBlocks[mi].item.name] != null;
+                matLine += (has ? "[green]+" : "[darkgray]-") + "[white]" + toBlockEmoji(materialBlocks[mi].item);
             }
         }
+        t.add(matLine);
+        t.row();
+
+        var bLine = "[gray]Buildings: ";
+        var bkKeys = Object.keys(td.keyBuildings);
+        if (bkKeys.length == 0) {
+            bLine += "[darkgray]none";
+        } else {
+            for (var bi = 0; bi < keyBlocks.length; bi++) {
+                var has = td.keyBuildings[keyBlocks[bi].name] != null;
+                bLine += (has ? "[green]+" : "[darkgray]-") + "[white]" + toBlockEmoji(keyBlocks[bi]);
+            }
+        }
+        t.add(bLine);
+        t.row();
+
+        var uKeys = Object.keys(td.unitCounts);
+        if (uKeys.length > 0) {
+            var uLine = "[gray]Units: ";
+            for (var ui = 0; ui < uKeys.length; ui++) {
+                var entry = td.unitCounts[uKeys[ui]];
+                uLine += toBlockEmoji(entry.type) + ":" + entry.count + " ";
+            }
+            t.add(uLine);
+            t.row();
+        }
     }
-    t.pack();
+}
+
+function showTechSummary() {
+    if (techSummaryTable) {
+        techSummaryTable.remove();
+        techSummaryTable = null;
+        return;
+    }
+
+    var techSummaryAcc = 0;
+
+    var t = new Table(Tex.button);
+    t.margin(12);
+
     var c = Core.scene.table();
-    c.margin(10);
+    c.background(Styles.black6);
+    c.margin(8);
     c.add(t);
     c.pack();
     c.setPosition(4, (Core.graphics.getHeight() - c.getPrefHeight()) / 2);
-    techSummaryTable = c;
 
-    techSummaryTimer = Timer.schedule(java.lang.Runnable({
-        run: function() {
-            if (techSummaryTable) {
-                techSummaryTable.remove();
-                techSummaryTable = null;
-            }
-            techSummaryTimer = null;
+    c.update(function() {
+        if (Vars.state.isMenu()) {
+            c.remove();
+            techSummaryTable = null;
+            return;
         }
-    }), 4);
+        techSummaryAcc += Time.delta;
+        if (techSummaryAcc >= 250) {
+            techSummaryAcc = 0;
+            rebuildTechSummary(t);
+            c.pack();
+        }
+    });
+
+    rebuildTechSummary(t);
+    c.pack();
+    techSummaryTable = c;
 }
 function checkForUpdates() {
     var currentVersion = "1.0.0";
     var repo = "Regator48/PvP-Notifs";
     var apiUrl = "https://api.github.com/repos/" + repo + "/releases/latest";
-    Http.get(apiUrl).error(function(e) {
+    Http.get(apiUrl).header("User-Agent", "PvP-Notifs").error(function(e) {
         Log.warn("Update check failed", e);
         Vars.ui.showErrorMessage("Failed to check for updates");
     }).submit(function(response) {
         var json = response.getResultAsString();
-        var tagIdx = json.indexOf("\"tag_name\":\"");
+        var tagIdx = json.indexOf("\"tag_name\"");
         var latestVersion = null;
         if (tagIdx >= 0) {
-            var start = tagIdx + 12;
-            var end = json.indexOf("\"", start);
-            latestVersion = json.substring(start, end).replace("v", "");
+            var colon = json.indexOf(":", tagIdx + 9);
+            var q1 = json.indexOf("\"", colon + 1);
+            var q2 = json.indexOf("\"", q1 + 1);
+            latestVersion = json.substring(q1 + 1, q2).replace("v", "");
         }
         var dialog = new BaseDialog("Update Check");
         dialog.addCloseButton();
