@@ -1175,23 +1175,20 @@ function rebuildTechSummary(t) {
         {item: Items.blastCompound, blocks: [Blocks.blastMixer]}
     ];
 
-    var keyBlocks = [
-        Blocks.ripple,
-        Blocks.breach,
-        Blocks.flame,
-        Blocks.cryo,
-        Blocks.fuse,
-        Blocks.pointDefense,
-        Blocks.cyclone,
-        Blocks.segment,
-        Blocks.parallax,
-        Blocks.smite,
-        Blocks.meltdown,
-        Blocks.spectre,
-        Blocks.titan,
-        Blocks.fortress,
-        Blocks.foreshadow
+    function blk(name) {
+        try { return Blocks[name]; } catch (e) { return null; }
+    }
+
+    var keyBlockNames = [
+        "ripple", "breach", "flame", "cryo", "fuse", "pointDefense",
+        "cyclone", "segment", "parallax", "smite", "meltdown",
+        "spectre", "titan", "fortress", "foreshadow"
     ];
+    var keyBlocks = [];
+    for (var kbi = 0; kbi < keyBlockNames.length; kbi++) {
+        var kb = blk(keyBlockNames[kbi]);
+        if (kb) keyBlocks.push(kb);
+    }
 
     var teamData = {};
     t.clear();
