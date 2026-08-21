@@ -548,6 +548,7 @@ Events.on(EventType.ClientLoadEvent,
         var savedBtnX = Core.settings.getInt("pvpnotifs-bx", 4);
         var savedBtnY = Core.settings.getInt("pvpnotifs-by", 4);
 
+        Core.app.post(() => {
         var t = new Table();
         t.background(Styles.black6);
         t.touchable = Touchable.enabled;
@@ -579,7 +580,7 @@ Events.on(EventType.ClientLoadEvent,
             showTechSummary();
         })).width(46).height(46).name("techsummary").tooltip("enemy tech summary");
 
-        t.button(Icon.cog, style, run(() => {
+        t.button(Icon.settings, style, run(() => {
             checkForUpdates();
         })).width(46).height(46).name("update").tooltip("check for updates");
 
@@ -623,6 +624,7 @@ Events.on(EventType.ClientLoadEvent,
                 }
             }
         }));
+        });
     }));
 
 var playerMiningAI = extend(AIController, {
@@ -1280,34 +1282,9 @@ function checkForUpdates() {
             dialog.cont.add("Latest: v" + latestVersion).pad(10).row();
             if (latestVersion !== currentVersion) {
                 dialog.cont.add("An update is available!").pad(10).row();
-                dialog.cont.button("Download", function() {
-                    var dlUrl = null;
-                    var dlIdx = json.indexOf("browser_download_url");
-                    if (dlIdx >= 0) {
-                        var colon = json.indexOf(":", dlIdx + 20);
-                        var q1 = json.indexOf("\"", colon + 1);
-                        var q2 = json.indexOf("\"", q1 + 1);
-                        dlUrl = json.substring(q1 + 1, q2);
-                    }
-                    if (dlUrl != null) {
-                        dialog.hide();
-                        var dlDialog = new BaseDialog("Downloading");
-                        dlDialog.cont.add("Downloading...").pad(20).row();
-                        dlDialog.show();
-                        Http.get(dlUrl).error(function(e1) {
-                            dlDialog.hide();
-                            Vars.ui.showErrorMessage("Download failed");
-                        }).submit(function(dlResponse) {
-                            var modsDir = Vars.modDirectory;
-                            var temp = modsDir.child("mod-new.jar");
-                            var dest = modsDir.child("PvP-Notifs.jar");
-                            temp.writeString(dlResponse.getResultAsString());
-                            if (dest.exists()) dest.delete();
-                            temp.moveTo(dest);
-                            dlDialog.hide();
-                            Vars.ui.showInfoToast("Update downloaded! Restart to apply.", 5f);
-                        });
-                    }
+                dialog.cont.button("Open Releases", function() {
+                    Core.app.openURI("https://github.com/" + repo + "/releases/latest");
+                    dialog.hide();
                 }).width(150).color(Color.green);
                 dialog.cont.button("Skip", function() {
                     dialog.hide();
