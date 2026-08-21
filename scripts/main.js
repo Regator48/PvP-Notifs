@@ -1515,16 +1515,30 @@ function showUpdateConfig() {
     d.show();
 }
 
+function findModDir() {
+    try {
+        var list = Vars.mods.all();
+        for (var i = 0; i < list.size; i++) {
+            var m = list.get(i);
+            if (m && m.name == "PvP-Alerts") {
+                var f = m.file;
+                if (f && f.exists()) {
+                    return f.isDirectory() ? f : f.parent();
+                }
+            }
+        }
+    } catch (e) {}
+    return null;
+}
+
 function downloadAndReplace() {
     var zipUrl = getZipUrl();
     Vars.ui.showInfoToast("Downloading update (" + getBranch() + ") ...", 4);
     httpGetFallback(zipUrl, getGiteeZipUrl(), function(response) {
         try {
             var bytes = response.getResult();
-            var mod = Vars.mods.getMod("PvP-Alerts");
-            if (!mod || !mod.file) throw new Error("Cannot locate mod folder");
-            var modDir = mod.file;
-            if (!modDir.exists()) throw new Error("Mod folder missing: " + modDir);
+            var modDir = findModDir();
+            if (!modDir || !modDir.exists()) throw new Error("Cannot locate mod folder for PvP-Alerts");
             var zis = new java.util.zip.ZipInputStream(new java.io.ByteArrayInputStream(bytes));
             var entry;
             var topLen = -1;
