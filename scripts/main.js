@@ -1246,12 +1246,20 @@ function showTechSummary() {
     var t = new Table(Tex.button);
     t.margin(12);
 
-    var c = Core.scene.table();
+    var c = new Table();
     c.background(Styles.black6);
     c.margin(8);
     c.add(t);
-    c.pack();
-    c.setPosition(4, (Core.graphics.getHeight() - c.getPrefHeight()) / 2);
+
+    var place = function() {
+        c.pack();
+        var h = Core.graphics.getHeight();
+        var ph = c.getPrefHeight();
+        var y = (h - ph) * 0.4;
+        if (y + ph > h - 6) y = h - ph - 6;
+        if (y < 6) y = 6;
+        c.setPosition(6, y);
+    };
 
     c.update(function() {
         if (Vars.state.isMenu()) {
@@ -1263,51 +1271,80 @@ function showTechSummary() {
         if (techSummaryAcc >= 250) {
             techSummaryAcc = 0;
             rebuildTechSummary(t);
-            c.pack();
+            place();
         }
     });
 
     rebuildTechSummary(t);
-    c.pack();
+    place();
+    Vars.ui.hudGroup.addChild(c);
     techSummaryTable = c;
 }
+function jsonField(json, key) {
+    var idx = json.indexOf("\"" + key + "\"");
+    if (idx < 0) return null;
+    var colon = json.indexOf(":", idx + key.length + 2);
+    var q1 = json.indexOf("\"", colon + 1);
+    if (q1 < 0) return null;
+    var q2 = json.indexOf("\"", q1 + 1);
+    if (q2 < 0) return null;
+    return json.substring(q1 + 1, q2);
+}
+
 function checkForUpdates() {
     var currentVersion = "1.0.0";
+    try {
+        var mod = Vars.mods.getMod("PvP-Alerts");
+        if (mod && mod.version) currentVersion = mod.version;
+    } catch (e) {}
+
     var repo = "Regator48/PvP-Notifs";
-    var apiUrl = "https://api.github.com/repos/" + repo + "/releases/latest";
-    Http.get(apiUrl).header("User-Agent", "PvP-Notifs").error(function(e) {
-        Log.warn("Update check failed", e);
-        Vars.ui.showErrorMessage("Failed to check for updates");
-    }).submit(function(response) {
-        var json = response.getResultAsString();
-        var tagIdx = json.indexOf("\"tag_name\"");
-        var latestVersion = null;
-        if (tagIdx >= 0) {
-            var colon = json.indexOf(":", tagIdx + 9);
-            var q1 = json.indexOf("\"", colon + 1);
-            var q2 = json.indexOf("\"", q1 + 1);
-            latestVersion = json.substring(q1 + 1, q2).replace("v", "");
+    var urls = [
+        "https://raw.githubusercontent.com/" + repo + "/main/mod.json",
+        "https://raw.githubusercontent.com/" + repo + "/v159/mod.json"
+    ];
+
+    var tryNext = function(i) {
+        if (i >= urls.length) {
+            Vars.ui.showErrorMessage("Update check failed: no response");
+            return;
         }
-        var dialog = new BaseDialog("Update Check");
-        dialog.addCloseButton();
-        dialog.cont.add("PvP-Notifs v" + currentVersion).pad(10).row();
-        if (latestVersion != null) {
-            dialog.cont.add("Latest: v" + latestVersion).pad(10).row();
-            if (latestVersion !== currentVersion) {
-                dialog.cont.add("An update is available!").pad(10).row();
-                dialog.cont.button("Open Releases", function() {
-                    Core.app.openURI("https://github.com/" + repo + "/releases/latest");
-                    dialog.hide();
-                }).width(150).color(Color.green);
-                dialog.cont.button("Skip", function() {
-                    dialog.hide();
-                }).width(150).color(Color.gray);
+        Http.get(urls[i]).header("User-Agent", "PvP-Notifs").error(function(e) {
+            Log.warn("Update check failed", e);
+            if (i + 1 < urls.length) {
+                tryNext(i + 1);
             } else {
-                dialog.cont.add("You have the latest version.").pad(10).row();
+                var msg = (e && e.getMessage) ? e.getMessage() : ("" + e);
+                Vars.ui.showErrorMessage("Update check failed: " + msg);
             }
-        } else {
-            dialog.cont.add("Could not check for updates.").pad(10).row();
-        }
-        dialog.show();
-    });
+        }).submit(function(response) {
+            var json = response.getResultAsString();
+            var latestVersion = jsonField(json, "version");
+            Core.app.post(function() {
+                var dialog = new BaseDialog("Update Check");
+                dialog.addCloseButton();
+                dialog.cont.add("PvP-Notifs v" + currentVersion).pad(10).row();
+                if (latestVersion != null) {
+                    dialog.cont.add("Latest: v" + latestVersion).pad(10).row();
+                    if (latestVersion !== currentVersion) {
+                        dialog.cont.add("An update is available!").pad(10).row();
+                        dialog.cont.button("Open Releases", function() {
+                            Core.app.openURI("https://github.com/" + repo + "/releases");
+                            dialog.hide();
+                        }).width(150).color(Color.green);
+                        dialog.cont.button("Skip", function() {
+                            dialog.hide();
+                        }).width(150).color(Color.gray);
+                    } else {
+                        dialog.cont.add("You have the latest version.").pad(10).row();
+                    }
+                } else {
+                    dialog.cont.add("Could not read version info.").pad(10).row();
+                }
+                dialog.show();
+            });
+        });
+    };
+
+    tryNext(0);
 }
