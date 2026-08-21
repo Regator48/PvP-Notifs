@@ -1,10 +1,11 @@
 {
     "name": "PvP-Alerts",
-    "displayName": "PvP Alerts",
+    "displayName": "PvP Alerts v159",
     "author": "Xelo",
-    "description": "PvP alerts, enemy production tracking, tech tree alerts, erekir trackers, /sync",
+    "description": "PvP alerts, enemy production tracking, tech tree alerts, turrets range, /sync",
     "version": "1.0.0",
-    "minGameVersion": 158,
+    "minGameVersion": 159,
     "java": false,
-    "hidden": true
+    "hidden": true,
+    "internal": false
 }

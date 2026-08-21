@@ -378,56 +378,40 @@ Events.on(EventType.BlockDestroyEvent, cons(e => {
 
     if (tile.team() == Vars.player.team()) {
         var severe = 0.01;
-        var max = 0.5;
         if (tile.build.block.category == Category.distribution) {
             severe *= 1;
-        }
-        if (tile.build.block.category == Category.defense) {
-            severe *= 5 * tile.build.block.size;
-            max = 1.5;
-        }
-        if (tile.build.block.category == Category.turret) {
-            severe *= 10 * tile.build.block.size;
-            max = 2.5;
-        }
-        if (tile.build.block.category == Category.power) {
-            max = tile.build.block.size * 2;
+        } else if (tile.build.block.category == Category.defense) {
+            severe *= Math.min(5 * tile.build.block.size, 3);
+        } else if (tile.build.block.category == Category.turret) {
+            severe *= Math.min(10 * tile.build.block.size, 3);
+        } else if (tile.build.block.category == Category.power) {
             if (tile.build.block instanceof PowerGenerator) {
-                severe *= 150;
+                severe *= Math.min(150 / tile.build.block.size, 3);
             } else if (tile.build.block instanceof PowerNode) {
-                severe *= 3;
+                severe *= Math.min(3 / tile.build.block.size, 3);
             } else {
-                severe *= 50;
+                severe *= Math.min(50 / tile.build.block.size, 3);
             }
+        } else if (tile.build.block.category == Category.logic) {
+            severe *= Math.min(10 / tile.build.block.size, 3);
+        } else if (tile.build.block.category == Category.production) {
+            severe *= Math.min(tile.build.block.size == 2 ? 3 : 30 / tile.build.block.size, 3);
+        } else if (tile.build.block.category == Category.crafting) {
+            severe *= Math.min(30 / tile.build.block.size, 3);
+        } else if (tile.build.block.category == Category.units) {
+            severe *= Math.min(200 / tile.build.block.size, 3);
+        } else if (tile.build.block.category == Category.effect) {
+            severe *= Math.min(5 / tile.build.block.size, 3);
         }
-        if (tile.build.block.category == Category.logic) {
-            severe *= 10;
-        }
-        if (tile.build.block.category == Category.production) {
-            severe *= (tile.build.block.size == 2 ? 3 : 30);
-            max = tile.build.block.size * 2;
-        }
-        if (tile.build.block.category == Category.crafting) {
-            severe *= 30;
-            max = tile.build.block.size * 2;
-        }
-        if (tile.build.block.category == Category.units) {
-            severe *= 200;
-            max = 5;
-        }
-        if (tile.build.block.category == Category.effect) {
-            severe *= 5;
-            max = 1;
-        }
-        triggerPip(tile.getX(), tile.getY(), severe, max);
+        triggerPip(tile.getX(), tile.getY(), severe, 3);
     }
 }));
 
 Events.on(EventType.ClientLoadEvent,
     cons(e => {
-        alerticonlow = Core.atlas.find("pvpnotifs-alert-0");
-        alerticonhigh = Core.atlas.find("pvpnotifs-alert-1");
-        pipicon = Core.atlas.find("pvpnotifs-pip");
+        alerticonlow = Core.atlas.find("pvpnotifs-alert-0") || Core.atlas.find("icon-remove");
+        alerticonhigh = Core.atlas.find("pvpnotifs-alert-1") || Core.atlas.find("icon-cancel");
+        pipicon = Core.atlas.find("pvpnotifs-pip") || Core.atlas.find("pip");
 
         addTrackHandler(BlockTrackHandler.new("graphite", BlockBuildTracker, Blocks.graphitePress, false, {
             "customText": function(team, block, tile) {
@@ -594,6 +578,10 @@ Events.on(EventType.ClientLoadEvent,
         t.button(Icon.units, style, run(() => {
             showTechSummary();
         })).width(46).height(46).name("techsummary").tooltip("enemy tech summary");
+
+        t.button(Icon.cog, style, run(() => {
+            checkForUpdates();
+        })).width(46).height(46).name("update").tooltip("check for updates");
 
         t.pack();
         t.setPosition(savedBtnX, savedBtnY);
@@ -1268,4 +1256,68 @@ function showTechSummary() {
             techSummaryTimer = null;
         }
     }), 4);
+}
+function checkForUpdates() {
+    var currentVersion = "1.0.0";
+    var repo = "Regator48/PvP-Notifs";
+    var apiUrl = "https://api.github.com/repos/" + repo + "/releases/latest";
+    Http.get(apiUrl).error(function(e) {
+        Log.warn("Update check failed", e);
+        Vars.ui.showErrorMessage("Failed to check for updates");
+    }).submit(function(response) {
+        var json = response.getResultAsString();
+        var tagIdx = json.indexOf("\"tag_name\":\"");
+        var latestVersion = null;
+        if (tagIdx >= 0) {
+            var start = tagIdx + 12;
+            var end = json.indexOf("\"", start);
+            latestVersion = json.substring(start, end).replace("v", "");
+        }
+        var dialog = new BaseDialog("Update Check");
+        dialog.addCloseButton();
+        dialog.cont.add("PvP-Notifs v" + currentVersion).pad(10).row();
+        if (latestVersion != null) {
+            dialog.cont.add("Latest: v" + latestVersion).pad(10).row();
+            if (latestVersion !== currentVersion) {
+                dialog.cont.add("An update is available!").pad(10).row();
+                dialog.cont.button("Download", function() {
+                    var dlUrl = null;
+                    var dlIdx = json.indexOf("browser_download_url");
+                    if (dlIdx >= 0) {
+                        var colon = json.indexOf(":", dlIdx + 20);
+                        var q1 = json.indexOf("\"", colon + 1);
+                        var q2 = json.indexOf("\"", q1 + 1);
+                        dlUrl = json.substring(q1 + 1, q2);
+                    }
+                    if (dlUrl != null) {
+                        dialog.hide();
+                        var dlDialog = new BaseDialog("Downloading");
+                        dlDialog.cont.add("Downloading...").pad(20).row();
+                        dlDialog.show();
+                        Http.get(dlUrl).error(function(e1) {
+                            dlDialog.hide();
+                            Vars.ui.showErrorMessage("Download failed");
+                        }).submit(function(dlResponse) {
+                            var modsDir = Vars.modDirectory;
+                            var temp = modsDir.child("mod-new.jar");
+                            var dest = modsDir.child("PvP-Notifs.jar");
+                            temp.writeString(dlResponse.getResultAsString());
+                            if (dest.exists()) dest.delete();
+                            temp.moveTo(dest);
+                            dlDialog.hide();
+                            Vars.ui.showInfoToast("Update downloaded! Restart to apply.", 5f);
+                        });
+                    }
+                }).width(150).color(Color.green);
+                dialog.cont.button("Skip", function() {
+                    dialog.hide();
+                }).width(150).color(Color.gray);
+            } else {
+                dialog.cont.add("You have the latest version.").pad(10).row();
+            }
+        } else {
+            dialog.cont.add("Could not check for updates.").pad(10).row();
+        }
+        dialog.show();
+    });
 }
