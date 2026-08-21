@@ -1369,7 +1369,7 @@ function getCommitsUrl() {
         var c = Core.settings.getString("pvpnotifs-commitsurl", "").trim();
         if (c.length > 0) return c;
     } catch (e) {}
-    return "https://api.github.com/repos/" + getRepo() + "/commits/" + getBranch();
+    return "https://api.github.com/repos/" + getRepo() + "/commits?sha=" + getBranch();
 }
 
 function getZipUrl() {
@@ -1531,8 +1531,13 @@ function checkForUpdates() {
             Vars.ui.showErrorMessage("Update check failed: " + ((e && e.getMessage) ? e.getMessage() : e));
         }).submit(function(response) {
             try {
-                var arr = JSON.parse(response.getResultAsString());
-                var sha = (arr && arr.length > 0 && arr[0].sha) ? arr[0].sha : null;
+                var data = JSON.parse(response.getResultAsString());
+                var sha = null;
+                if (data && data.length !== undefined && data.length > 0) {
+                    sha = data[0] && data[0].sha ? data[0].sha : null;
+                } else if (data && data.sha) {
+                    sha = data.sha;
+                }
                 var last = "";
                 try { last = Core.settings.getString("pvpnotifs-lastsha", ""); } catch (e2) {}
                 Core.app.post(function() {
