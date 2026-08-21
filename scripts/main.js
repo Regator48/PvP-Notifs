@@ -1184,30 +1184,34 @@ function rebuildTechSummary(t) {
     ];
 
     var teamData = {};
+    t.clear();
 
-    Vars.world.tiles.each(function(x, y) {
-        var tile = Vars.world.tiles.getn(x, y);
-        if (!tile || !tile.build) return;
-        var team = tile.team();
-        if (!team || team == Team.derelict) return;
-        var tid = team.id;
-        if (!teamData[tid]) {
-            teamData[tid] = {team: team, materials: {}, keyBuildings: {}, unitCounts: {}};
-        }
-        var block = tile.build.block;
-        for (var mi = 0; mi < materialBlocks.length; mi++) {
-            for (var bi = 0; bi < materialBlocks[mi].blocks.length; bi++) {
-                if (block == materialBlocks[mi].blocks[bi]) {
-                    teamData[tid].materials[materialBlocks[mi].item.name] = materialBlocks[mi].item;
+    try {
+        var bit = Groups.build.iterator();
+        while (bit.hasNext()) {
+            var b = bit.next();
+            if (!b) continue;
+            var team = b.team;
+            if (!team || team == Team.derelict) continue;
+            var tid = team.id;
+            if (!teamData[tid]) {
+                teamData[tid] = {team: team, materials: {}, keyBuildings: {}, unitCounts: {}};
+            }
+            var block = b.block;
+            for (var mi = 0; mi < materialBlocks.length; mi++) {
+                for (var bi = 0; bi < materialBlocks[mi].blocks.length; bi++) {
+                    if (block == materialBlocks[mi].blocks[bi]) {
+                        teamData[tid].materials[materialBlocks[mi].item.name] = materialBlocks[mi].item;
+                    }
+                }
+            }
+            for (var ki = 0; ki < keyBlocks.length; ki++) {
+                if (block == keyBlocks[ki]) {
+                    teamData[tid].keyBuildings[block.name] = block;
                 }
             }
         }
-        for (var ki = 0; ki < keyBlocks.length; ki++) {
-            if (block == keyBlocks[ki]) {
-                teamData[tid].keyBuildings[block.name] = block;
-            }
-        }
-    });
+    } catch (err) {}
 
     try {
         var it = Groups.unit.iterator();
@@ -1312,7 +1316,7 @@ function showTechSummary() {
             return;
         }
         techSummaryAcc += Time.delta;
-        if (techSummaryAcc >= 250) {
+        if (techSummaryAcc >= 500) {
             techSummaryAcc = 0;
             rebuildTechSummary(t);
             place();
