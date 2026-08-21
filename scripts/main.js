@@ -579,6 +579,10 @@ Events.on(EventType.ClientLoadEvent,
             showTechSummary();
         })).width(46).height(46).name("techsummary").tooltip("enemy tech summary");
 
+        t.button(Icon.cog, style, run(() => {
+            checkForUpdates();
+        })).width(46).height(46).name("update").tooltip("check for updates");
+
         t.pack();
         t.setPosition(savedBtnX, savedBtnY);
         Vars.ui.hudGroup.addChild(t);
@@ -1252,4 +1256,68 @@ function showTechSummary() {
             techSummaryTimer = null;
         }
     }), 4);
+}
+function checkForUpdates() {
+    var currentVersion = "1.0.0";
+    var repo = "Regator48/PvP-Notifs";
+    var apiUrl = "https://api.github.com/repos/" + repo + "/releases/latest";
+    Http.get(apiUrl).error(function(e) {
+        Log.warn("Update check failed", e);
+        Vars.ui.showErrorMessage("Failed to check for updates");
+    }).submit(function(response) {
+        var json = response.getResultAsString();
+        var tagIdx = json.indexOf("\"tag_name\":\"");
+        var latestVersion = null;
+        if (tagIdx >= 0) {
+            var start = tagIdx + 12;
+            var end = json.indexOf("\"", start);
+            latestVersion = json.substring(start, end).replace("v", "");
+        }
+        var dialog = new BaseDialog("Update Check");
+        dialog.addCloseButton();
+        dialog.cont.add("PvP-Notifs v" + currentVersion).pad(10).row();
+        if (latestVersion != null) {
+            dialog.cont.add("Latest: v" + latestVersion).pad(10).row();
+            if (latestVersion !== currentVersion) {
+                dialog.cont.add("An update is available!").pad(10).row();
+                dialog.cont.button("Download", function() {
+                    var dlUrl = null;
+                    var dlIdx = json.indexOf("browser_download_url");
+                    if (dlIdx >= 0) {
+                        var colon = json.indexOf(":", dlIdx + 20);
+                        var q1 = json.indexOf("\"", colon + 1);
+                        var q2 = json.indexOf("\"", q1 + 1);
+                        dlUrl = json.substring(q1 + 1, q2);
+                    }
+                    if (dlUrl != null) {
+                        dialog.hide();
+                        var dlDialog = new BaseDialog("Downloading");
+                        dlDialog.cont.add("Downloading...").pad(20).row();
+                        dlDialog.show();
+                        Http.get(dlUrl).error(function(e1) {
+                            dlDialog.hide();
+                            Vars.ui.showErrorMessage("Download failed");
+                        }).submit(function(dlResponse) {
+                            var modsDir = Vars.modDirectory;
+                            var temp = modsDir.child("mod-new.jar");
+                            var dest = modsDir.child("PvP-Notifs.jar");
+                            temp.writeString(dlResponse.getResultAsString());
+                            if (dest.exists()) dest.delete();
+                            temp.moveTo(dest);
+                            dlDialog.hide();
+                            Vars.ui.showInfoToast("Update downloaded! Restart to apply.", 5f);
+                        });
+                    }
+                }).width(150).color(Color.green);
+                dialog.cont.button("Skip", function() {
+                    dialog.hide();
+                }).width(150).color(Color.gray);
+            } else {
+                dialog.cont.add("You have the latest version.").pad(10).row();
+            }
+        } else {
+            dialog.cont.add("Could not check for updates.").pad(10).row();
+        }
+        dialog.show();
+    });
 }
