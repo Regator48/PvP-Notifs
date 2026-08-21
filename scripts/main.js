@@ -378,56 +378,40 @@ Events.on(EventType.BlockDestroyEvent, cons(e => {
 
     if (tile.team() == Vars.player.team()) {
         var severe = 0.01;
-        var max = 0.5;
         if (tile.build.block.category == Category.distribution) {
             severe *= 1;
-        }
-        if (tile.build.block.category == Category.defense) {
-            severe *= 5 * tile.build.block.size;
-            max = 1.5;
-        }
-        if (tile.build.block.category == Category.turret) {
-            severe *= 10 * tile.build.block.size;
-            max = 2.5;
-        }
-        if (tile.build.block.category == Category.power) {
-            max = tile.build.block.size * 2;
+        } else if (tile.build.block.category == Category.defense) {
+            severe *= Math.min(5 * tile.build.block.size, 3);
+        } else if (tile.build.block.category == Category.turret) {
+            severe *= Math.min(10 * tile.build.block.size, 3);
+        } else if (tile.build.block.category == Category.power) {
             if (tile.build.block instanceof PowerGenerator) {
-                severe *= 150;
+                severe *= Math.min(150 / tile.build.block.size, 3);
             } else if (tile.build.block instanceof PowerNode) {
-                severe *= 3;
+                severe *= Math.min(3 / tile.build.block.size, 3);
             } else {
-                severe *= 50;
+                severe *= Math.min(50 / tile.build.block.size, 3);
             }
+        } else if (tile.build.block.category == Category.logic) {
+            severe *= Math.min(10 / tile.build.block.size, 3);
+        } else if (tile.build.block.category == Category.production) {
+            severe *= Math.min(tile.build.block.size == 2 ? 3 : 30 / tile.build.block.size, 3);
+        } else if (tile.build.block.category == Category.crafting) {
+            severe *= Math.min(30 / tile.build.block.size, 3);
+        } else if (tile.build.block.category == Category.units) {
+            severe *= Math.min(200 / tile.build.block.size, 3);
+        } else if (tile.build.block.category == Category.effect) {
+            severe *= Math.min(5 / tile.build.block.size, 3);
         }
-        if (tile.build.block.category == Category.logic) {
-            severe *= 10;
-        }
-        if (tile.build.block.category == Category.production) {
-            severe *= (tile.build.block.size == 2 ? 3 : 30);
-            max = tile.build.block.size * 2;
-        }
-        if (tile.build.block.category == Category.crafting) {
-            severe *= 30;
-            max = tile.build.block.size * 2;
-        }
-        if (tile.build.block.category == Category.units) {
-            severe *= 200;
-            max = 5;
-        }
-        if (tile.build.block.category == Category.effect) {
-            severe *= 5;
-            max = 1;
-        }
-        triggerPip(tile.getX(), tile.getY(), severe, max);
+        triggerPip(tile.getX(), tile.getY(), severe, 3);
     }
 }));
 
 Events.on(EventType.ClientLoadEvent,
     cons(e => {
-        alerticonlow = Core.atlas.find("pvpnotifs-alert-0");
-        alerticonhigh = Core.atlas.find("pvpnotifs-alert-1");
-        pipicon = Core.atlas.find("pvpnotifs-pip");
+        alerticonlow = Core.atlas.find("pvpnotifs-alert-0") || Core.atlas.find("icon-remove");
+        alerticonhigh = Core.atlas.find("pvpnotifs-alert-1") || Core.atlas.find("icon-cancel");
+        pipicon = Core.atlas.find("pvpnotifs-pip") || Core.atlas.find("pip");
 
         addTrackHandler(BlockTrackHandler.new("graphite", BlockBuildTracker, Blocks.graphitePress, false, {
             "customText": function(team, block, tile) {
