@@ -1569,16 +1569,20 @@ function findModFile() {
                 var f = files[j];
                 if (!f) continue;
                 var fname = ("" + f.getName()).toLowerCase();
-                var fi = new arc.files.Fi(f.getPath());
+                if (fname.indexOf("pvp") >= 0) return Vars.modDirectory.child(f.getName());
+            }
+            for (var j2 = 0; j2 < files.length; j2++) {
+                var f2 = files[j2];
+                if (!f2) continue;
+                var fi = Vars.modDirectory.child(f2.getName());
                 var nm2 = null;
-                if (f.isDirectory()) {
+                if (f2.isDirectory()) {
                     var mj = fi.child("mod.json");
                     if (mj.exists()) nm2 = jsonField(mj.readString(), "name");
                 } else {
                     nm2 = zipModName(fi);
                 }
                 if (nm2 && ("" + nm2).toLowerCase().indexOf("pvp") >= 0) return fi;
-                if (fname.indexOf("pvp") >= 0) return fi;
             }
         }
     } catch (e3) {}
