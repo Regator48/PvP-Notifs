@@ -564,10 +564,6 @@ Events.on(EventType.ClientLoadEvent,
             onChat(Vars.player ? Vars.player.name : "local", "units");
         })).width(46).height(46).name("units").tooltip("count enemy units");
 
-        t.button(Icon.eyeSmall, style, run(() => {
-            Vars.enableLight = !Vars.enableLight;
-        })).update(b => b.setChecked(Vars.enableLight)).width(46).height(46).name("light").tooltip("toggle lighting");
-
         t.button(Icon.refresh, style, run(() => {
             Call.sendChatMessage("/sync");
         })).width(46).height(46).name("sync").tooltip("/sync");
