@@ -1736,8 +1736,35 @@ function checkForUpdates() {
                 Vars.ui.showErrorMessage("Could not read commit info.");
             }
         }, function(e) {
-            Log.warn("Beta update check failed", e);
-            Vars.ui.showErrorMessage("Update check failed: " + ((e && e.getMessage) ? e.getMessage() : e));
+            Log.warn("Beta commit check failed, falling back to version check", e);
+            httpGetFallback(getRawUrl(), getGiteeRawUrl(), function(response) {
+                var latestVersion = jsonField(response.getResultAsString(), "version");
+                Core.app.post(function() {
+                    var d = new BaseDialog("Beta Update Check");
+                    d.addCloseButton();
+                    d.cont.add("Branch: [white]" + getBranch() + "  (commit API unreachable)").pad(5).row();
+                    d.cont.add("PvP-Alerts v" + currentVersion).pad(5).row();
+                    if (latestVersion != null) {
+                        d.cont.add("Latest: v" + latestVersion).pad(5).row();
+                        if (latestVersion !== currentVersion) {
+                            d.cont.add("[yellow]A newer build is available.").pad(5).row();
+                            d.cont.button("Download & Replace", function() {
+                                d.hide();
+                                downloadAndReplace();
+                            }).width(180).color(Color.green);
+                            d.cont.button("Skip", function() { d.hide(); }).width(120).color(Color.gray);
+                        } else {
+                            d.cont.add("You have the latest build.").pad(5).row();
+                        }
+                    } else {
+                        d.cont.add("Could not read version info.").pad(5).row();
+                    }
+                    d.show();
+                });
+            }, function(e2) {
+                Log.warn("Beta update check failed", e2);
+                Vars.ui.showErrorMessage("Update check failed: " + ((e2 && e2.getMessage) ? e2.getMessage() : e2));
+            });
         });
         return;
     }
