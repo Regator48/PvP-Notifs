@@ -749,19 +749,22 @@ function iterateOver(iterator, func) {
 
 
 Events.run(Trigger.drawOver, () => {
-    jot.drawMouse();
+    try {
+        jot.drawMouse();
 
-    Draw.draw(Layer.overlayUI + 0.01, run(() => {
-        pips.each(t => {
-            t.draw();
-        });
-    }));
+        Draw.draw(Layer.overlayUI + 0.01, run(() => {
+            pips.each(t => {
+                try { t.draw(); } catch (e) { Log.err("PvP-Alerts pip draw failed", e); }
+            });
+        }));
+    } catch (e) { Log.err("PvP-Alerts drawOver failed", e); }
 });
 
 var glitch = false;
 var delayglitch = 0;
 
 Events.run(Trigger.update, () => {
+    try {
     pips = pips.select((t) => { return t.life < t.maxlife; });
     anticommandspam = anticommandspam.select((t) => { return t.timer >= 0; });
     anticommandspam.each(t => {
@@ -840,6 +843,7 @@ Events.run(Trigger.update, () => {
 
     iterateOver(Vars.indexer.getFlagged(Vars.player.team(), BlockFlag.generator).iterator(), tilecons);
     iterateOver(Vars.indexer.getFlagged(Vars.player.team(), BlockFlag.reactor).iterator(), tilecons);
+    } catch (e) { Log.err("PvP-Alerts update loop failed", e); }
 });
 
 var prevmap = "";
