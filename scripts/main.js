@@ -757,6 +757,7 @@ function iterateOver(iterator, func) {
 
 
 function drawTurretDamageIndicators() {
+    if (typeof Turret === 'undefined' || typeof Drawf === 'undefined') return;
     Groups.build.each(build => {
         try {
             if (build.team != Vars.player.team()) return;
@@ -774,12 +775,11 @@ function drawTurretDamageIndicators() {
             var isAoE = (bullet.splashDamage > 0) || (bullet.splashDamageRadius > 0);
             if (isAoE) {
                 var r = bullet.splashDamageRadius > 0 ? bullet.splashDamageRadius : Mathf.clamp(bullet.splashDamage * 0.6, 8, 600);
-                Draw.color(Color.orange);
-                Lines.circle(x, y, r);
+                Drawf.circles(x, y, r, Color.orange);
             } else {
                 var s = Mathf.clamp(Math.sqrt(bullet.damage) * 0.9, 3, 16);
                 Draw.color(Color.yellow);
-                Fill.tri(x, y + s, x - s * 0.866, y - s * 0.5, x + s * 0.866, y - s * 0.5);
+                Drawf.tri(x, y, s * 1.2, s * 1.6, 90);
             }
         } catch (e) {}
     });
