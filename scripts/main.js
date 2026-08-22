@@ -628,7 +628,7 @@ Events.on(EventType.ClientLoadEvent,
             showTurretDmg = !showTurretDmg;
             dmgBtn.setChecked(showTurretDmg);
             Core.settings.put("pvpnotifs-showturretdmg", showTurretDmg);
-        })).width(46).height(46).name("turretdmg").tooltip("turret damage indicators: triangle=single-target, circle=AoE").get();
+        })).width(46).height(46).name("turretdmg").tooltip("ammo shapes: yellow triangle on single-target bullets, orange circle on AoE bullets").get();
         dmgBtn.setChecked(showTurretDmg);
         dmgBtnRef = dmgBtn;
 
@@ -756,30 +756,23 @@ function iterateOver(iterator, func) {
 }
 
 
-function drawTurretDamageIndicators() {
-    if (typeof Turret === 'undefined' || typeof Drawf === 'undefined') return;
-    Groups.build.each(build => {
+function drawAmmoShapes() {
+    if (typeof Drawf === 'undefined' || typeof Groups.bullet === 'undefined') return;
+    Groups.bullet.each(b => {
         try {
-            if (build.team != Vars.player.team()) return;
-            var block = build.block;
-            if (!(block instanceof Turret)) return;
-            var bullet = null;
-            if (typeof ItemTurret !== 'undefined' && block instanceof ItemTurret) {
-                var it = block.ammoTypes.keys().iterator();
-                if (it.hasNext()) bullet = block.ammoTypes.get(it.next());
-            } else if (block.bullet != null) {
-                bullet = block.bullet;
-            }
-            if (bullet == null) return;
-            var x = build.x, y = build.y;
-            var isAoE = (bullet.splashDamage > 0) || (bullet.splashDamageRadius > 0);
+            if (b.team != Vars.player.team()) return;
+            var t = b.type;
+            if (t == null) return;
+            var isAoE = (t.splashDamage > 0) || (t.splashDamageRadius > 0);
             if (isAoE) {
-                var r = bullet.splashDamageRadius > 0 ? bullet.splashDamageRadius : Mathf.clamp(bullet.splashDamage * 0.6, 8, 600);
-                Drawf.circles(x, y, r, Color.orange);
+                var r = t.splashDamageRadius > 0 ? t.splashDamageRadius : Mathf.clamp(t.splashDamage * 0.6, 4, 200);
+                Drawf.circles(b.x, b.y, r, Color.orange);
             } else {
-                var s = Mathf.clamp(Math.sqrt(bullet.damage) * 0.9, 3, 16);
+                var s = Mathf.clamp(Math.sqrt(t.damage) * 0.9, 2, 12);
                 Draw.color(Color.yellow);
-                Drawf.tri(x, y, s * 1.2, s * 1.6, 90);
+                var rot = 90;
+                try { if (typeof b.rotation === 'function') rot = b.rotation(); } catch (e2) {}
+                Drawf.tri(b.x, b.y, s * 1.2, s * 1.6, rot);
             }
         } catch (e) {}
     });
@@ -797,7 +790,7 @@ Events.run(Trigger.drawOver, () => {
         }));
         if (showTurretDmg) {
             Draw.draw(Layer.overlayUI + 0.02, run(() => {
-                try { drawTurretDamageIndicators(); } catch (e) { Log.err("PvP-Alerts turret indicators failed", e); }
+                try { drawAmmoShapes(); } catch (e) { Log.err("PvP-Alerts ammo shapes failed", e); }
             }));
         }
     } catch (e) { Log.err("PvP-Alerts drawOver failed", e); }
