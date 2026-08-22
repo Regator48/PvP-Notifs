@@ -1518,15 +1518,34 @@ function showUpdateConfig() {
     d.show();
 }
 
+function zipModName(fi) {
+    try {
+        var bytes = fi.readBytes();
+        var zis = new java.util.zip.ZipInputStream(new java.io.ByteArrayInputStream(bytes));
+        var buf = java.lang.reflect.Array.newInstance(java.lang.Byte.TYPE, 8192);
+        var entry;
+        while ((entry = zis.getNextEntry()) != null) {
+            var n = entry.getName();
+            if (n == "mod.json" || n.endsWith("/mod.json")) {
+                var baos = new java.io.ByteArrayOutputStream();
+                var len;
+                while ((len = zis.read(buf)) > 0) baos.write(buf, 0, len);
+                zis.closeEntry();
+                zis.close();
+                return jsonField(new java.lang.String(baos.toByteArray(), "UTF-8"), "name");
+            }
+            zis.closeEntry();
+        }
+        zis.close();
+    } catch (e) {}
+    return null;
+}
+
 function findModFile() {
     try {
-        var m1 = Vars.mods.getMod("PvP-Alerts");
-        if (m1 && m1.file && m1.file.exists()) return m1.file;
-    } catch (e) {}
-    try {
-        var list = Vars.mods.orderedItems();
-        for (var i = 0; i < list.size; i++) {
-            var m = list.get(i);
+        var all = Vars.mods.all;
+        for (var i = 0; i < all.size; i++) {
+            var m = all.get(i);
             if (!m) continue;
             var nm = (m.name != null) ? ("" + m.name).toLowerCase() : "";
             if (nm.indexOf("pvp") >= 0 && m.file && m.file.exists()) return m.file;
@@ -1538,7 +1557,16 @@ function findModFile() {
             var ch = md.children();
             for (var j = 0; j < ch.size; j++) {
                 var c = ch.get(j);
-                if (c && c.name().toLowerCase().indexOf("pvp") >= 0) return c;
+                if (!c) continue;
+                var nm2 = null;
+                if (c.isDirectory()) {
+                    var mj = c.child("mod.json");
+                    if (mj.exists()) nm2 = jsonField(mj.readString(), "name");
+                } else {
+                    nm2 = zipModName(c);
+                }
+                if (nm2 && ("" + nm2).toLowerCase().indexOf("pvp") >= 0) return c;
+                if (c.name().toLowerCase().indexOf("pvp") >= 0) return c;
             }
         }
     } catch (e3) {}
