@@ -1580,7 +1580,26 @@ function downloadAndReplace() {
         try {
             var bytes = response.getResult();
             var modFile = findModFile();
-            if (!modFile || !modFile.exists()) throw new Error("Cannot locate mod file for PvP-Alerts");
+            if (!modFile || !modFile.exists()) {
+                var diag = "modsDir=";
+                try { diag += (Vars.modDirectory != null ? Vars.modDirectory.path() : "null"); } catch (e) { diag += "err:" + e; }
+                diag += " | children=";
+                try {
+                    var ch = Vars.modDirectory.children();
+                    for (var di = 0; di < ch.size; di++) {
+                        diag += (di > 0 ? ", " : "") + ch.get(di).name() + (ch.get(di).isDirectory() ? "(dir)" : "(file)");
+                    }
+                } catch (e2) { diag += "err:" + e2; }
+                diag += " | loadedMods=";
+                try {
+                    var all = Vars.mods.all;
+                    for (var li = 0; li < all.size; li++) {
+                        var mm = all.get(li);
+                        diag += (li > 0 ? ", " : "") + (mm.name != null ? mm.name : "?") + (mm.file != null ? "@" + mm.file.name() : "@null");
+                    }
+                } catch (e3) { diag += "err:" + e3; }
+                throw new Error("Cannot locate mod file for PvP-Alerts\n[" + diag + "]");
+            }
             if (modFile.isDirectory()) {
                 var zis = new java.util.zip.ZipInputStream(new java.io.ByteArrayInputStream(bytes));
                 var entry;
