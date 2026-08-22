@@ -1543,30 +1543,42 @@ function zipModName(fi) {
 
 function findModFile() {
     try {
-        var all = Vars.mods.all;
-        for (var i = 0; i < all.size; i++) {
-            var m = all.get(i);
-            if (!m) continue;
-            var nm = (m.name != null) ? ("" + m.name).toLowerCase() : "";
-            if (nm.indexOf("pvp") >= 0 && m.file && m.file.exists()) return m.file;
+        var m0 = Vars.mods.getMod("PvP-Alerts");
+        if (m0 && m0.file && m0.file.exists()) return m0.file;
+    } catch (e0) {}
+
+    try {
+        var list = null;
+        try { list = Vars.mods.orderedItems(); } catch (e1) {}
+        if (list == null) { try { list = Vars.mods.all; } catch (e2) {} }
+        if (list != null) {
+            for (var i = 0; i < list.size; i++) {
+                var m = list.get(i);
+                if (!m) continue;
+                var nm = (m.name != null) ? ("" + m.name).toLowerCase() : "";
+                if (nm.indexOf("pvp") >= 0 && m.file && m.file.exists()) return m.file;
+            }
         }
     } catch (e) {}
+
     try {
-        var md = Vars.modDirectory;
-        if (md && md.exists()) {
-            var ch = md.children();
-            for (var j = 0; j < ch.size; j++) {
-                var c = ch.get(j);
-                if (!c) continue;
+        var dir = new java.io.File(Vars.modDirectory.path());
+        var files = dir.listFiles();
+        if (files != null) {
+            for (var j = 0; j < files.length; j++) {
+                var f = files[j];
+                if (!f) continue;
+                var fname = ("" + f.getName()).toLowerCase();
+                var fi = new arc.files.Fi(f.getPath());
                 var nm2 = null;
-                if (c.isDirectory()) {
-                    var mj = c.child("mod.json");
+                if (f.isDirectory()) {
+                    var mj = fi.child("mod.json");
                     if (mj.exists()) nm2 = jsonField(mj.readString(), "name");
                 } else {
-                    nm2 = zipModName(c);
+                    nm2 = zipModName(fi);
                 }
-                if (nm2 && ("" + nm2).toLowerCase().indexOf("pvp") >= 0) return c;
-                if (c.name().toLowerCase().indexOf("pvp") >= 0) return c;
+                if (nm2 && ("" + nm2).toLowerCase().indexOf("pvp") >= 0) return fi;
+                if (fname.indexOf("pvp") >= 0) return fi;
             }
         }
     } catch (e3) {}
@@ -1585,17 +1597,26 @@ function downloadAndReplace() {
                 try { diag += (Vars.modDirectory != null ? Vars.modDirectory.path() : "null"); } catch (e) { diag += "err:" + e; }
                 diag += " | children=";
                 try {
-                    var ch = Vars.modDirectory.children();
-                    for (var di = 0; di < ch.size; di++) {
-                        diag += (di > 0 ? ", " : "") + ch.get(di).name() + (ch.get(di).isDirectory() ? "(dir)" : "(file)");
+                    var dir = new java.io.File(Vars.modDirectory.path());
+                    var fls = dir.listFiles();
+                    if (fls != null) {
+                        for (var di = 0; di < fls.length; di++) {
+                            diag += (di > 0 ? ", " : "") + fls[di].getName() + (fls[di].isDirectory() ? "(dir)" : "(file)");
+                        }
                     }
                 } catch (e2) { diag += "err:" + e2; }
                 diag += " | loadedMods=";
                 try {
-                    var all = Vars.mods.all;
-                    for (var li = 0; li < all.size; li++) {
-                        var mm = all.get(li);
-                        diag += (li > 0 ? ", " : "") + (mm.name != null ? mm.name : "?") + (mm.file != null ? "@" + mm.file.name() : "@null");
+                    var all = null;
+                    try { all = Vars.mods.orderedItems(); } catch (e4) {}
+                    if (all == null) { try { all = Vars.mods.all; } catch (e5) {} }
+                    if (all != null) {
+                        for (var li = 0; li < all.size; li++) {
+                            var mm = all.get(li);
+                            diag += (li > 0 ? ", " : "") + (mm.name != null ? mm.name : "?") + (mm.file != null ? "@" + mm.file.name() : "@null");
+                        }
+                    } else {
+                        diag += "unavailable";
                     }
                 } catch (e3) { diag += "err:" + e3; }
                 throw new Error("Cannot locate mod file for PvP-Alerts\n[" + diag + "]");
