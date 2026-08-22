@@ -771,7 +771,7 @@ function drawAmmoShapes() {
                 var s = Mathf.clamp(Math.sqrt(t.damage) * 0.9, 2, 12);
                 Draw.color(Color.yellow);
                 var rot = 90;
-                try { if (typeof b.rotation === 'function') rot = b.rotation(); } catch (e2) {}
+                try { if (b.vel != null) rot = b.vel.angle(); } catch (e2) {}
                 Drawf.tri(b.x, b.y, s * 1.2, s * 1.6, rot);
             }
         } catch (e) {}
