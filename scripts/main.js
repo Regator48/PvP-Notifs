@@ -624,6 +624,14 @@ Events.on(EventType.ClientLoadEvent,
             }
         }));
 
+        var dmgBtn = t.button(Icon.star, Styles.clearTogglei, run(() => {
+            showTurretDmg = !showTurretDmg;
+            dmgBtn.setChecked(showTurretDmg);
+            Core.settings.put("pvpnotifs-showturretdmg", showTurretDmg);
+        })).width(46).height(46).name("turretdmg").tooltip("turret damage indicators: triangle=single-target, circle=AoE").get();
+        dmgBtn.setChecked(showTurretDmg);
+        dmgBtnRef = dmgBtn;
+
         t.pack();
         t.setPosition(savedBtnX, savedBtnY);
         Vars.ui.hudGroup.addChild(t);
@@ -748,6 +756,36 @@ function iterateOver(iterator, func) {
 }
 
 
+function drawTurretDamageIndicators() {
+    Groups.build.each(build => {
+        try {
+            if (build.team != Vars.player.team()) return;
+            var block = build.block;
+            if (!(block instanceof Turret)) return;
+            var bullet = null;
+            if (typeof ItemTurret !== 'undefined' && block instanceof ItemTurret) {
+                var it = block.ammoTypes.keys().iterator();
+                if (it.hasNext()) bullet = block.ammoTypes.get(it.next());
+            } else if (block.bullet != null) {
+                bullet = block.bullet;
+            }
+            if (bullet == null) return;
+            var x = build.x, y = build.y;
+            var isAoE = (bullet.splashDamage > 0) || (bullet.splashDamageRadius > 0);
+            if (isAoE) {
+                var r = bullet.splashDamageRadius > 0 ? bullet.splashDamageRadius : Mathf.clamp(bullet.splashDamage * 0.6, 8, 600);
+                Draw.color(Color.orange);
+                Lines.circle(x, y, r);
+            } else {
+                var s = Mathf.clamp(Math.sqrt(bullet.damage) * 0.9, 3, 16);
+                Draw.color(Color.yellow);
+                Fill.tri(x, y + s, x - s * 0.866, y - s * 0.5, x + s * 0.866, y - s * 0.5);
+            }
+        } catch (e) {}
+    });
+    Draw.reset();
+}
+
 Events.run(Trigger.drawOver, () => {
     try {
         jot.drawMouse();
@@ -757,11 +795,19 @@ Events.run(Trigger.drawOver, () => {
                 try { t.draw(); } catch (e) { Log.err("PvP-Alerts pip draw failed", e); }
             });
         }));
+        if (showTurretDmg) {
+            Draw.draw(Layer.overlayUI + 0.02, run(() => {
+                try { drawTurretDamageIndicators(); } catch (e) { Log.err("PvP-Alerts turret indicators failed", e); }
+            }));
+        }
     } catch (e) { Log.err("PvP-Alerts drawOver failed", e); }
 });
 
 var glitch = false;
 var delayglitch = 0;
+var showTurretDmg = false;
+try { showTurretDmg = Core.settings.getBool("pvpnotifs-showturretdmg", false); } catch (e) {}
+var dmgBtnRef = null;
 
 Events.run(Trigger.update, () => {
     try {
@@ -1070,7 +1116,7 @@ const onChat = function(sender, message) {
         var cmd = all[0];
         switch (cmd) {
             case "help":
-                print("[red]PvP-Alerts [white]commands: [green]enable, disable, wipe, items, units, prefix");
+                print("[red]PvP-Alerts [white]commands: [green]enable, disable, wipe, items, units, prefix, turretdmg");
                 break;
             case "enable":
                 enabled = true;
@@ -1150,8 +1196,14 @@ const onChat = function(sender, message) {
                         }
                         queue.add(f);
                     }
-                    queue.add("[cyan]Counting enemy units..");
+                        queue.add("[cyan]Counting enemy units..");
                 }
+                break;
+            case "turretdmg":
+                showTurretDmg = !showTurretDmg;
+                if (dmgBtnRef) dmgBtnRef.setChecked(showTurretDmg);
+                Core.settings.put("pvpnotifs-showturretdmg", showTurretDmg);
+                print("[green]PvP-Alerts: turret damage indicators " + (showTurretDmg ? "on" : "off"));
                 break;
         }
     }
