@@ -1,7 +1,11 @@
-print("[green]PvP-Alerts v1.3.10 loaded!");
+print("[green]PvP-Alerts v1.4.0 loaded!");
 const jot = require("jotfunction");
 
+var pvpDebug = false;
+try { pvpDebug = Core.settings.getBool("pvpnotifs-debug", false); } catch(e) {}
+
 function pvplog(msg) {
+    if (!pvpDebug) return;
     try { Vars.ui.chatfrag.addMessage("[yellow][PvP] " + msg); } catch(e) {}
     try { Vars.ui.showInfoToast(msg, 4); } catch(e) {}
 }
@@ -1390,6 +1394,11 @@ const onChat = function(sender, message) {
                     var cnt = Vars.content.bullets().size;
                     print("content bullets: [white]" + cnt);
                 } catch (e9) { print("content bullets: [red]error " + e9); }
+                break;
+            case "debug":
+                pvpDebug = !pvpDebug;
+                Core.settings.put("pvpnotifs-debug", pvpDebug);
+                print("[green]PvP-Alerts: debug messages " + (pvpDebug ? "ON" : "OFF"));
                 break;
         }
     }
