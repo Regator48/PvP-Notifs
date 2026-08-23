@@ -943,14 +943,26 @@ function applyAmmoSprites() {
 }
 
 function restoreAmmoSprites() {
-    if (!ammoApplied) return;
+    if (!ammoApplied) { pvplog("restore: not applied, skip"); return; }
+    pvplog("restore: restoring " + ammoSaved.length + " types");
     try {
         for (var i = 0; i < ammoSaved.length; i++) {
             var r = ammoSaved[i];
-            try { if (r[3]) r[3].set(r[0], r[1]); } catch (e) {}
-            try { if (r[4] && r[2] != null) r[4].set(r[0], r[2]); } catch (e2) {}
+            try {
+                if (r[3]) {
+                    r[3].set(r[0], r[1]);
+                } else {
+                    pvplog("restore: frontField null for " + r[0]);
+                }
+            } catch (e) { pvplog("restore front err: " + e); }
+            try {
+                if (r[4] && r[2] != null) {
+                    r[4].set(r[0], r[2]);
+                }
+            } catch (e2) { pvplog("restore back err: " + e2); }
         }
-    } catch (e) {}
+        pvplog("restore: done");
+    } catch (e) { pvplog("restore err: " + e); }
     ammoSaved = [];
     ammoApplied = false;
 }
