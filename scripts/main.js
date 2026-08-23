@@ -967,8 +967,12 @@ function restoreAmmoSprites() {
 }
 
 function syncAmmoSprites() {
-    pvplog("syncAmmo: on=" + showTurretDmg + " built=" + ammoBuilt);
-    if (showTurretDmg) applyAmmoSprites(); else restoreAmmoSprites();
+    if (showTurretDmg) {
+        applyAmmoSprites();
+    } else {
+        // Just stop applying — originals restore on content reload (map change)
+        ammoApplied = false;
+    }
 }
 
 Events.run(Trigger.drawOver, () => {
@@ -1080,11 +1084,11 @@ Events.on(EventType.WorldLoadEvent, e => {
         clear();
         prevmap = Vars.state.map.name();
         pips.clear();
-        // Re-apply ammo sprites after content reload
-        if (showTurretDmg && ammoBuilt) {
-            ammoApplied = false;
-            ammoOrigSaved = false;
-            ammoSaved = [];
+        // Reset and re-apply ammo sprites after content reload
+        ammoApplied = false;
+        ammoOrigSaved = false;
+        ammoSaved = [];
+        if (showTurretDmg) {
             try { applyAmmoSprites(); } catch (e0) {}
         }
     }
