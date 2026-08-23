@@ -843,6 +843,24 @@ function getRingRegion(radiusUnits, boxMaxUnits) {
     } catch (e) { return null; }
 }
 
+function findField(cls, name) {
+    try { var f = cls.getDeclaredField(name); f.setAccessible(true); return f; } catch (e) {}
+    // fallback: walk superclasses
+    var c = cls.getSuperclass();
+    while (c != null) {
+        try { var f = c.getDeclaredField(name); f.setAccessible(true); return f; } catch (e) {}
+        c = c.getSuperclass();
+    }
+    // fallback: search all declared fields by name
+    try {
+        var fields = cls.getDeclaredFields();
+        for (var i = 0; i < fields.length; i++) {
+            if (fields[i].getName() == name) { fields[i].setAccessible(true); return fields[i]; }
+        }
+    } catch (e) {}
+    return null;
+}
+
 function applyAmmoSprites() {
     try {
         if (!Vars.content || !Vars.content.bullets || Vars.content.bullets().size == 0) { ammoStatus = "waiting: content not loaded"; return; }
@@ -853,10 +871,9 @@ function applyAmmoSprites() {
         var BBT = Packages.mindustry.entities.bullet.BasicBulletType;
         var list = Vars.content.bullets();
         var swapped = 0, skipped = 0;
-        var frontField = null, backField = null;
-        try { frontField = BBT.class.getDeclaredField("frontRegion"); frontField.setAccessible(true); } catch (ef) {}
-        try { backField = BBT.class.getDeclaredField("backRegion"); backField.setAccessible(true); } catch (eb) {}
-        if (frontField == null) { ammoStatus = "FAILED: cannot find frontRegion field"; return; }
+        var frontField = findField(BBT, "frontRegion");
+        var backField = findField(BBT, "backRegion");
+        if (frontField == null) { ammoStatus = "FAILED: cannot find frontRegion field on " + BBT; return; }
         for (var i = 0; i < list.size; i++) {
             var ty = list.get(i);
             try {
@@ -898,9 +915,8 @@ function restoreAmmoSprites() {
     if (!ammoApplied) return;
     try {
         var BBT = Packages.mindustry.entities.bullet.BasicBulletType;
-        var frontField = null, backField = null;
-        try { frontField = BBT.class.getDeclaredField("frontRegion"); frontField.setAccessible(true); } catch (ef) {}
-        try { backField = BBT.class.getDeclaredField("backRegion"); backField.setAccessible(true); } catch (eb) {}
+        var frontField = findField(BBT, "frontRegion");
+        var backField = findField(BBT, "backRegion");
         for (var i = 0; i < ammoSaved.length; i++) {
             var r = ammoSaved[i];
             try { if (frontField) frontField.set(r[0], r[1]); } catch (e) {}
