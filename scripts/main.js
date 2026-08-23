@@ -836,15 +836,14 @@ function ensureAmmoTextures() {
 function getRingRegion(radiusUnits, boxMaxUnits) {
     try {
         if (!ringCache._ok) { ensureAmmoTextures(); if (!ammoBuilt) return null; }
-        var ORANGE = 0xffa500ff | 0;  // signed 32-bit int for arc Pixmap
+        var TAN = 0xddcc88ff | 0;  // muted tan, same as triangle
         var frac = Math.min(Math.max(radiusUnits / Math.max(boxMaxUnits, 1), 0.12), 1.0);
         var key = Math.round(frac * 24);
         if (ringCache[key]) return ringCache[key];
-        // Headless test confirmed: r=26 dot=7 gives 57% coverage (clearly visible ring)
-        var dotR = 7;
+        var dotR = 3;  // thin stroke
         var ringR = Math.max(Math.round(frac * 26), 8);
         var pc = new Pixmap(64, 64);
-        stampRing(pc, 32, 32, ringR, dotR, ORANGE);
+        stampRing(pc, 32, 32, ringR, dotR, TAN);
         var reg = new TextureRegion(new Texture(pc));
         pc.dispose();
         ringCache[key] = reg;
