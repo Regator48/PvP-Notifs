@@ -853,19 +853,33 @@ function getRingRegion(radiusUnits, boxMaxUnits) {
 function findField(cls, name) {
     // Try direct getDeclaredField first
     try { var f = cls.getDeclaredField(name); f.setAccessible(true); return f; } catch (e) {}
-    // Fallback: search all declared fields by name (walks nothing, just brute-force)
+    // Fallback: search all declared fields by name
     try {
         var fields = cls.getDeclaredFields();
+        var names = [];
         for (var i = 0; i < fields.length; i++) {
+            names.push(fields[i].getName());
             if (fields[i].getName() == name) { fields[i].setAccessible(true); return fields[i]; }
         }
-    } catch (e) {}
+        pvplog("fields on " + cls + ": " + names.join(", "));
+    } catch (e) { pvplog("getDeclaredFields failed: " + e); }
     // Last resort: try superclass via java.lang.Class
     try {
         var c = java.lang.Class.getSuperclass(cls);
         while (c != null) {
-            try { var f = c.getDeclaredField(name); f.setAccessible(true); return f; } catch (e2) {}
-            try { c = java.lang.Class.getSuperclass(c); } catch (e3) { break; }
+            try {
+                var f = c.getDeclaredField(name); f.setAccessible(true); return f;
+            } catch (e2) {}
+            try {
+                var pfields = c.getDeclaredFields();
+                var pnames = [];
+                for (var j = 0; j < pfields.length; j++) {
+                    pnames.push(pfields[j].getName());
+                    if (pfields[j].getName() == name) { pfields[j].setAccessible(true); return pfields[j]; }
+                }
+                pvplog("superclass " + c + " fields: " + pnames.join(", "));
+            } catch (e3) {}
+            try { c = java.lang.Class.getSuperclass(c); } catch (e4) { break; }
         }
     } catch (e) {}
     return null;
