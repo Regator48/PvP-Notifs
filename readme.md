@@ -2,7 +2,7 @@ PvP Alerts v159
 
 Ported to Mindustry v158/v159 with erekir support.
 
-Disclaimer: This mod was originally created by Xelo. JohnTing forked Xelo's repo, and Altair forked from JohnTing's fork. Credits to Xelo (original author), JohnTing, and Altair.
+Disclaimer: This mod was originally created by Xelo. JohnTing forked Xelo's repo, then Altair forked from JohnTing's repo.
 
 Mod functions:
 - Enemy tech tree / production alerts (including erekir blocks)
@@ -13,7 +13,7 @@ Mod functions:
 - Toggle lighting
 - Damage alerts with pips
 - AFK mining AI
-- Ammo shape sprites (hollow triangle for single-target, splash-radius ring for AoE)
+- Ammo shape sprites (idea by JohnTing: hollow triangle for single-target, splash-radius ring for AoE)
 - In-game auto-updater (stable / beta channels)
 
 Removed from v136: Quick schematics, turret range view, ore scan, factory progress bars, steal unit, gamma AI button
@@ -26,4 +26,4 @@ Buttons (bottom-left bar):
 - Star: toggle ammo shape sprites
 
 Chat commands:
-- help, enable, disable, wipe, items, units, prefix, turretdmg, ammo
+- help, enable, disable, wipe, items, units, prefix, turretdmg, ammo, debug
