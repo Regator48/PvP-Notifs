@@ -920,7 +920,7 @@ function applyAmmoSprites() {
                     var origFront = frontField.get(ty);
                     var origBack = null;
                     if (backField != null) origBack = backField.get(ty);
-                    ammoSaved.push([ty, origFront, origBack]);
+                    ammoSaved.push([ty, origFront, origBack, frontField, backField]);
                 }
                 // Always set (survives content reloads)
                 frontField.set(ty, reg);
@@ -947,14 +947,8 @@ function restoreAmmoSprites() {
     try {
         for (var i = 0; i < ammoSaved.length; i++) {
             var r = ammoSaved[i];
-            try {
-                var frontField = findField(r[0], "frontRegion");
-                if (frontField) frontField.set(r[0], r[1]);
-            } catch (e) {}
-            try {
-                var backField = findField(r[0], "backRegion");
-                if (backField && r[2] != null) backField.set(r[0], r[2]);
-            } catch (e2) {}
+            try { if (r[3]) r[3].set(r[0], r[1]); } catch (e) {}
+            try { if (r[4] && r[2] != null) r[4].set(r[0], r[2]); } catch (e2) {}
         }
     } catch (e) {}
     ammoSaved = [];
@@ -1732,12 +1726,21 @@ function showUpdateConfig() {
     d.cont.add("e.g. Regator48/PvP-Notifs  ->  [white]leave empty if unused").row();
     d.cont.add(giteeField).width(440).row();
 
+    var exePath = "";
+    try { exePath = Core.settings.getString("pvpnotifs-exepath", ""); } catch(e) {}
+    var exeField = new TextField(exePath);
+    exeField.setMaxLength(500);
+    d.cont.add("[gray]Game executable path (for auto-restart):").padTop(8).row();
+    d.cont.add("e.g. C:\\Mindustry\\Mindustry.exe  ->  [white]leave empty to skip restart").row();
+    d.cont.add(exeField).width(440).row();
+
     d.cont.button("Save", function() {
         Core.settings.put("pvpnotifs-branch", branchField.getText().trim());
         Core.settings.put("pvpnotifs-beta", beta);
         Core.settings.put("pvpnotifs-rawurl", rawField.getText().trim());
         Core.settings.put("pvpnotifs-zipurl", zipField.getText().trim());
         Core.settings.put("pvpnotifs-gitee", giteeField.getText().trim());
+        Core.settings.put("pvpnotifs-exepath", exeField.getText().trim());
         // clear legacy keys from the old commit-SHA updater
         Core.settings.put("pvpnotifs-commitsurl", "");
         Core.settings.put("pvpnotifs-lastsha", "");
@@ -1948,11 +1951,27 @@ function downloadAndReplace(zipUrlOverride) {
             Core.app.post(function() {
                 var d = new BaseDialog("Update Applied");
                 d.cont.add("[green]Update applied successfully!").pad(10).row();
-                d.cont.add("[gray]Close and reopen Mindustry to load the new version.").pad(5).row();
-                d.cont.button("Exit Game", function() {
-                    d.hide();
-                    Core.app.exit();
-                }).width(180).color(Color.orange);
+                var exepath = "";
+                try { exepath = Core.settings.getString("pvpnotifs-exepath", ""); } catch(e) {}
+                if (exepath) {
+                    d.cont.add("[gray]Restart to load the new version.").pad(5).row();
+                    d.cont.button("Restart now", function() {
+                        d.hide();
+                        try {
+                            var pb = new java.lang.ProcessBuilder(exepath);
+                            pb.start();
+                        } catch (e) {
+                            pvplog("Restart failed: " + e);
+                        }
+                        Core.app.exit();
+                    }).width(180).color(Color.green);
+                } else {
+                    d.cont.add("[gray]Close and reopen Mindustry to load the new version.").pad(5).row();
+                    d.cont.button("Exit Game", function() {
+                        d.hide();
+                        Core.app.exit();
+                    }).width(180).color(Color.orange);
+                }
                 d.cont.button("Later", function() {
                     d.hide();
                 }).width(120).color(Color.gray);
