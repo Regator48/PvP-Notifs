@@ -2,7 +2,7 @@ PvP Alerts v159
 
 Ported to Mindustry v158/v159 with erekir support.
 
-Disclaimer: This mod was originally created by Xelo. JohnTing forked Xelo's repo, then Altair forked from JohnTing's repo.
+Disclaimer: This mod was originally created by Xelo. JohnTing forked Xelo's repo, and I forked from JohnTing's fork. Credits to Xelo and JohnTing.
 
 Mod functions:
 - Enemy tech tree / production alerts (including erekir blocks)
