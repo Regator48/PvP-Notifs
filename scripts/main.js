@@ -808,13 +808,11 @@ function stampRing(pm, cx, cy, radius, dotR, color) {
 function ensureAmmoTextures() {
     if (ammoBuilt) return;
     try {
-        var YELLOW = 0xffff00ff | 0;  // signed 32-bit int for arc Pixmap
-        // Fat hollow triangle — full span, stroke radius 7 dots.
-        // Headless test confirmed 53% coverage, clearly visible at bullet scale.
+        var TAN = 0xddcc88ff | 0;  // muted tan/light yellow, plain
         var pt = new Pixmap(64, 64);
-        stampLine(pt, 3, 61, 61, 61, 7, YELLOW);   // base
-        stampLine(pt, 61, 61, 32, 3, 7, YELLOW);   // right edge
-        stampLine(pt, 32, 3, 3, 61, 7, YELLOW);     // left edge
+        stampLine(pt, 3, 61, 61, 61, 3, TAN);   // base
+        stampLine(pt, 61, 61, 32, 3, 3, TAN);   // right edge
+        stampLine(pt, 32, 3, 3, 61, 3, TAN);    // left edge
         triRegion = new TextureRegion(new Texture(pt));
         pt.dispose();
         ammoBuilt = true;
