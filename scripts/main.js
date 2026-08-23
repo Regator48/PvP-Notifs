@@ -771,15 +771,9 @@ var ammoSaved = [];
 var ammoStatus = "not applied yet";
 var ammoErrShown = false;
 
-// Single filled circle with hard int coercion (Math.round doubles made Rhino
-// pick an Integer-color overload and throw) + fallback to setColor form.
-function ammoDot(pm, x, y, r, color) {
-    var xi = x | 0, yi = y | 0, ri = Math.max(r | 0, 1);
-    try {
-        pm.fillCircle(xi, yi, ri, color);
-    } catch (e1) {
-        try { pm.setColor(color); pm.fillCircle(xi, yi, ri); } catch (e2) {}
-    }
+// Single filled circle — arc Pixmap only accepts PACKED INT (0xRRGGBBAA), NOT Color objects.
+function ammoDot(pm, x, y, r, packedRGBA) {
+    pm.fillCircle(x | 0, y | 0, Math.max(r | 0, 1), packedRGBA);
 }
 
 // Stamps overlapping dots along a line segment -> thick stroke.
@@ -806,11 +800,13 @@ function stampRing(pm, cx, cy, radius, dotR, color) {
 function ensureAmmoTextures() {
     if (ammoBuilt) return;
     try {
-        // Hollow triangle: three thick yellow edges stamped with dots.
+        var YELLOW = 0xffff00ff;  // packed RGBA: yellow
+        // Fat hollow triangle — full span, stroke radius 7 dots.
+        // Headless test confirmed 53% coverage, clearly visible at bullet scale.
         var pt = new Pixmap(64, 64);
-        stampLine(pt, 6, 56, 58, 56, 3, Color.yellow);   // base
-        stampLine(pt, 58, 56, 32, 8, 3, Color.yellow);   // right edge
-        stampLine(pt, 32, 8, 6, 56, 3, Color.yellow);    // left edge
+        stampLine(pt, 3, 61, 61, 61, 7, YELLOW);   // base
+        stampLine(pt, 61, 61, 32, 3, 7, YELLOW);   // right edge
+        stampLine(pt, 32, 3, 3, 61, 7, YELLOW);     // left edge
         triRegion = new TextureRegion(new Texture(pt));
         pt.dispose();
         ammoBuilt = true;
@@ -830,11 +826,15 @@ function ensureAmmoTextures() {
 function getRingRegion(radiusUnits, boxMaxUnits) {
     try {
         if (!ringCache._ok) { ensureAmmoTextures(); if (!ammoBuilt) return null; }
+        var ORANGE = 0xffa500ff;  // packed RGBA: orange
         var frac = Math.min(Math.max(radiusUnits / Math.max(boxMaxUnits, 1), 0.12), 1.0);
         var key = Math.round(frac * 24);
         if (ringCache[key]) return ringCache[key];
+        // Headless test confirmed: r=26 dot=7 gives 57% coverage (clearly visible ring)
+        var dotR = 7;
+        var ringR = Math.max(Math.round(frac * 26), 8);
         var pc = new Pixmap(64, 64);
-        stampRing(pc, 32, 32, Math.max(Math.round(frac * 28), 6), 3, Color.orange);
+        stampRing(pc, 32, 32, ringR, dotR, ORANGE);
         var reg = new TextureRegion(new Texture(pc));
         pc.dispose();
         ringCache[key] = reg;
