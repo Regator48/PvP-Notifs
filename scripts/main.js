@@ -865,11 +865,11 @@ function applyAmmoSprites() {
                     reg = getRingRegion(R, boxMax);
                     if (reg == null) reg = triRegion;
                 }
-                var rec = [ty, null, false, null, null];
+                var rec = [ty, null, null, null];
                 rec[1] = ty.frontRegion;
-                rec[4] = ty.backRegion;  // save both originals
+                rec[2] = ty.backRegion;  // save original (may be null)
                 ty.frontRegion = reg;
-                ty.backRegion = reg;
+                if (rec[2] != null) ty.backRegion = reg;  // only swap if it had a back sprite
                 ammoSaved.push(rec);
                 swapped++;
             } catch (e2) {}
@@ -887,7 +887,7 @@ function restoreAmmoSprites() {
     for (var i = 0; i < ammoSaved.length; i++) {
         var r = ammoSaved[i];
         try { r[0].frontRegion = r[1]; } catch (e) {}
-        try { r[0].backRegion = r[4]; } catch (e2) {}
+        try { if (r[2] != null) r[0].backRegion = r[2]; } catch (e2) {}
     }
     ammoSaved = [];
     ammoApplied = false;
