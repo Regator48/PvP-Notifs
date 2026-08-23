@@ -849,18 +849,21 @@ function getRingRegion(radiusUnits, boxMaxUnits) {
 }
 
 function findField(cls, name) {
+    // Try direct getDeclaredField first
     try { var f = cls.getDeclaredField(name); f.setAccessible(true); return f; } catch (e) {}
-    // fallback: walk superclasses
-    var c = cls.getSuperclass();
-    while (c != null) {
-        try { var f = c.getDeclaredField(name); f.setAccessible(true); return f; } catch (e) {}
-        c = c.getSuperclass();
-    }
-    // fallback: search all declared fields by name
+    // Fallback: search all declared fields by name (walks nothing, just brute-force)
     try {
         var fields = cls.getDeclaredFields();
         for (var i = 0; i < fields.length; i++) {
             if (fields[i].getName() == name) { fields[i].setAccessible(true); return fields[i]; }
+        }
+    } catch (e) {}
+    // Last resort: try superclass via java.lang.Class
+    try {
+        var c = java.lang.Class.getSuperclass(cls);
+        while (c != null) {
+            try { var f = c.getDeclaredField(name); f.setAccessible(true); return f; } catch (e2) {}
+            try { c = java.lang.Class.getSuperclass(c); } catch (e3) { break; }
         }
     } catch (e) {}
     return null;
