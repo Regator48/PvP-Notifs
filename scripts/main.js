@@ -920,7 +920,7 @@ function applyAmmoSprites() {
                     var origFront = frontField.get(ty);
                     var origBack = null;
                     if (backField != null) origBack = backField.get(ty);
-                    ammoSaved.push([ty, origFront, origBack, frontField, backField]);
+                    ammoSaved.push([ty, origFront, origBack]);
                 }
                 // Always set (survives content reloads)
                 frontField.set(ty, reg);
@@ -943,26 +943,25 @@ function applyAmmoSprites() {
 }
 
 function restoreAmmoSprites() {
-    if (!ammoApplied) { pvplog("restore: not applied, skip"); return; }
-    pvplog("restore: restoring " + ammoSaved.length + " types");
+    if (!ammoApplied) return;
     try {
+        var BBT = Packages.mindustry.entities.bullet.BasicBulletType;
         for (var i = 0; i < ammoSaved.length; i++) {
             var r = ammoSaved[i];
             try {
-                if (r[3]) {
-                    r[3].set(r[0], r[1]);
-                } else {
-                    pvplog("restore: frontField null for " + r[0]);
-                }
-            } catch (e) { pvplog("restore front err: " + e); }
+                var cls = java.lang.Class.forName("mindustry.entities.bullet.BasicBulletType");
+                var ff = cls.getDeclaredField("frontRegion");
+                ff.setAccessible(true);
+                ff.set(r[0], r[1]);
+            } catch (e) {}
             try {
-                if (r[4] && r[2] != null) {
-                    r[4].set(r[0], r[2]);
-                }
-            } catch (e2) { pvplog("restore back err: " + e2); }
+                var cls2 = java.lang.Class.forName("mindustry.entities.bullet.BasicBulletType");
+                var bf = cls2.getDeclaredField("backRegion");
+                bf.setAccessible(true);
+                if (r[2] != null) bf.set(r[0], r[2]);
+            } catch (e2) {}
         }
-        pvplog("restore: done");
-    } catch (e) { pvplog("restore err: " + e); }
+    } catch (e) {}
     ammoSaved = [];
     ammoApplied = false;
 }
