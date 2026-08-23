@@ -768,6 +768,8 @@ var ammoBuilt = false;
 var triRegion = null;
 var ringCache = {};
 var ammoSaved = [];
+var ammoStatus = "not applied yet";
+var ammoErrShown = false;
 
 // Stamps overlapping dots along a line segment -> thick stroke.
 function stampLine(pm, x1, y1, x2, y2, r, color) {
@@ -801,7 +803,15 @@ function ensureAmmoTextures() {
         triRegion = new TextureRegion(new Texture(pt));
         pt.dispose();
         ammoBuilt = true;
-    } catch (e) { Log.err("PvP-Alerts ammo bake failed", e); }
+        ammoStatus = "baked ok";
+    } catch (e) {
+        ammoStatus = "BAKE FAILED: " + e;
+        Log.err("PvP-Alerts ammo bake failed", e);
+        if (!ammoErrShown) {
+            ammoErrShown = true;
+            try { Vars.ui.showErrorMessage("PvP-Alerts sticker bake failed:\n" + e); } catch (e2) {}
+        }
+    }
 }
 
 // Ring whose diameter equals splashDamageRadius after being stretched into the
@@ -823,17 +833,19 @@ function getRingRegion(radiusUnits, boxMaxUnits) {
 
 function applyAmmoSprites() {
     try {
-        if (!Vars.content || !Vars.content.bullets || Vars.content.bullets().size == 0) return; // content not loaded yet
-    } catch (e) { return; }
+        if (!Vars.content || !Vars.content.bullets || Vars.content.bullets().size == 0) { ammoStatus = "waiting: content not loaded"; return; } // content not loaded yet
+    } catch (e) { ammoStatus = "waiting: content error " + e; return; }
     ensureAmmoTextures();
-    if (!ammoBuilt || ammoApplied) return;
+    if (!ammoBuilt) return;
+    if (ammoApplied) return;
     try {
         var BBT = Packages.mindustry.entities.bullet.BasicBulletType;
         var list = Vars.content.bullets();
+        var swapped = 0, skipped = 0;
         for (var i = 0; i < list.size; i++) {
             var ty = list.get(i);
             try {
-                if (!(ty instanceof BBT)) continue;
+                if (!(ty instanceof BBT)) { skipped++; continue; }
                 var isAoE = (ty.splashDamage > 0) || (ty.splashDamageRadius > 0);
                 var reg = triRegion;
                 if (isAoE) {
@@ -853,7 +865,11 @@ function applyAmmoSprites() {
             } catch (e2) {}
         }
         ammoApplied = true;
-    } catch (e) { Log.err("PvP-Alerts ammo sprite swap failed", e); }
+        ammoStatus = "swapped " + swapped + " bullet types (" + skipped + " non-basic skipped)";
+    } catch (e) {
+        ammoStatus = "SWAP FAILED: " + e;
+        Log.err("PvP-Alerts ammo sprite swap failed", e);
+    }
 }
 
 function restoreAmmoSprites() {
@@ -1199,7 +1215,7 @@ const onChat = function(sender, message) {
         var cmd = all[0];
         switch (cmd) {
             case "help":
-                print("[red]PvP-Alerts [white]commands: [green]enable, disable, wipe, items, units, prefix, turretdmg");
+                print("[red]PvP-Alerts [white]commands: [green]enable, disable, wipe, items, units, prefix, turretdmg, ammo");
                 break;
             case "enable":
                 enabled = true;
@@ -1287,7 +1303,17 @@ const onChat = function(sender, message) {
                 if (dmgBtnRef) dmgBtnRef.setChecked(showTurretDmg);
                 Core.settings.put("pvpnotifs-showturretdmg", showTurretDmg);
                 syncAmmoSprites();
-                print("[green]PvP-Alerts: ammo shape sprites (triangle/circle) " + (showTurretDmg ? "on" : "off"));
+                print("[green]PvP-Alerts: ammo shape sprites (triangle/circle) " + (showTurretDmg ? "on" : "off") + " [white]— " + ammoStatus);
+                break;
+            case "ammo":
+                print("[yellow]-- PvP-Alerts ammo diagnostics --");
+                print("mod version: [white]" + localModVersion());
+                print("toggle: [white]" + showTurretDmg + "[white] | built: " + ammoBuilt + " | applied: " + ammoApplied);
+                print("status: [white]" + ammoStatus);
+                try {
+                    var cnt = Vars.content.bullets().size;
+                    print("content bullets: [white]" + cnt);
+                } catch (e9) { print("content bullets: [red]error " + e9); }
                 break;
         }
     }
