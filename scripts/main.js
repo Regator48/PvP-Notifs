@@ -967,11 +967,6 @@ Events.run(Trigger.drawOver, () => {
     try {
         jot.drawMouse();
 
-        // Brute-force: re-apply swap every frame in case content load reset it
-        if (showTurretDmg && ammoBuilt) {
-            try { applyAmmoSprites(); } catch (e0) { pvplog("drawOver apply err: " + e0); }
-        }
-
         Draw.draw(Layer.overlayUI + 0.01, run(() => {
             pips.each(t => {
                 try { t.draw(); } catch (e) { Log.err("PvP-Alerts pip draw failed", e); }
@@ -1067,6 +1062,11 @@ Events.run(Trigger.update, () => {
 
     iterateOver(Vars.indexer.getFlagged(Vars.player.team(), BlockFlag.generator).iterator(), tilecons);
     iterateOver(Vars.indexer.getFlagged(Vars.player.team(), BlockFlag.reactor).iterator(), tilecons);
+    // Brute-force: re-apply swap every tick in case content load reset it
+    if (showTurretDmg && ammoBuilt) {
+        try { applyAmmoSprites(); } catch (e0) {}
+    }
+
     } catch (e) { Log.err("PvP-Alerts update loop failed", e); }
 });
 
