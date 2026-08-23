@@ -771,6 +771,17 @@ var ammoSaved = [];
 var ammoStatus = "not applied yet";
 var ammoErrShown = false;
 
+// Single filled circle with hard int coercion (Math.round doubles made Rhino
+// pick an Integer-color overload and throw) + fallback to setColor form.
+function ammoDot(pm, x, y, r, color) {
+    var xi = x | 0, yi = y | 0, ri = Math.max(r | 0, 1);
+    try {
+        pm.fillCircle(xi, yi, ri, color);
+    } catch (e1) {
+        try { pm.setColor(color); pm.fillCircle(xi, yi, ri); } catch (e2) {}
+    }
+}
+
 // Stamps overlapping dots along a line segment -> thick stroke.
 function stampLine(pm, x1, y1, x2, y2, r, color) {
     var dx = x2 - x1, dy = y2 - y1;
@@ -778,7 +789,7 @@ function stampLine(pm, x1, y1, x2, y2, r, color) {
     var steps = Math.max(Math.ceil(dist / (r * 0.9)), 2);
     for (var i = 0; i <= steps; i++) {
         var t = i / steps;
-        pm.fillCircle(Math.round(x1 + dx * t), Math.round(y1 + dy * t), r, color);
+        ammoDot(pm, x1 + dx * t, y1 + dy * t, r, color);
     }
 }
 
@@ -788,7 +799,7 @@ function stampRing(pm, cx, cy, radius, dotR, color) {
     var steps = Math.max(Math.ceil(circumference / (dotR * 0.8)), 8);
     for (var j = 0; j < steps; j++) {
         var ang = (j / steps) * 2 * Math.PI;
-        pm.fillCircle(Math.round(cx + Math.cos(ang) * radius), Math.round(cy + Math.sin(ang) * radius), dotR, color);
+        ammoDot(pm, cx + Math.cos(ang) * radius, cy + Math.sin(ang) * radius, dotR, color);
     }
 }
 
