@@ -628,7 +628,8 @@ Events.on(EventType.ClientLoadEvent,
             showTurretDmg = !showTurretDmg;
             dmgBtn.setChecked(showTurretDmg);
             Core.settings.put("pvpnotifs-showturretdmg", showTurretDmg);
-        })).width(46).height(46).name("turretdmg").tooltip("ammo shapes: yellow triangle on single-target bullets, orange circle on AoE bullets").get();
+            syncAmmoSprites();
+        })).width(46).height(46).name("turretdmg").tooltip("ammo shapes: replaces your team's bullet sprites with yellow triangles (single-target) / orange circles (AoE) — lighter than stock sprites").get();
         dmgBtn.setChecked(showTurretDmg);
         dmgBtnRef = dmgBtn;
 
@@ -756,46 +757,88 @@ function iterateOver(iterator, func) {
 }
 
 
-function drawAmmoShapes() {
-    if (typeof Drawf === 'undefined' || typeof Groups.bullet === 'undefined') return;
-    Groups.bullet.each(b => {
-        try {
-            if (b.team != Vars.player.team()) return;
-            var t = b.type;
-            if (t == null) return;
-            var isAoE = (t.splashDamage > 0) || (t.splashDamageRadius > 0);
-            var rot = 90;
-            try { if (b.vel != null) rot = b.vel.angle(); } catch (e2) {}
-            if (isAoE) {
-                var r = t.splashDamageRadius > 0 ? t.splashDamageRadius : Mathf.clamp(t.splashDamage * 0.6, 8, 200);
-                Draw.color(Color.darkGray);
-                Drawf.circles(b.x, b.y, r + 1.5, Color.darkGray);
-                Drawf.circles(b.x, b.y, r, Color.orange);
-            } else {
-                var s = Mathf.clamp(Math.sqrt(Math.max(t.damage, 1)) * 1.6, 7, 24);
-                Drawf.tri(b.x, b.y, s * 1.45, s * 1.9, rot); // dark outline
-                Draw.color(Color.yellow);
-                Drawf.tri(b.x, b.y, s, s * 1.4, rot);
-            }
-        } catch (e) {}
-    });
-    Draw.reset();
+// --- ammo sprite replacement (v1.2.0) ---
+// Swaps your team's BasicBulletType sprites for baked triangle/circle textures.
+// Zero per-frame JS work: vanilla's own bullet draw blits the swapped texture.
+
+var ammoApplied = false;
+var ammoRegionsBuilt = false;
+var triRegion = null;
+var circRegion = null;
+var ammoSaved = [];
+
+function buildAmmoRegions() {
+    if (ammoRegionsBuilt) return;
+    try {
+        var S = 64;
+        var pt = new Pixmap(S, S);
+        pt.fillTriangle(4, 60, 60, 60, 32, 4, Color.darkGray);
+        pt.fillTriangle(11, 55, 53, 55, 37, 12, Color.yellow);
+        var pc = new Pixmap(S, S);
+        pc.fillCircle(32, 32, 29, Color.darkGray);
+        pc.fillCircle(32, 32, 25, Color.orange);
+        triRegion = new TextureRegion(new Texture(pt));
+        circRegion = new TextureRegion(new Texture(pc));
+        pt.dispose();
+        pc.dispose();
+        ammoRegionsBuilt = true;
+    } catch (e) { Log.err("PvP-Alerts ammo region bake failed", e); }
+}
+
+function applyAmmoSprites() {
+    try {
+        if (!Vars.content || !Vars.content.bullets || Vars.content.bullets().size == 0) return; // content not loaded yet
+    } catch (e) { return; }
+    buildAmmoRegions();
+    if (!ammoRegionsBuilt || ammoApplied) return;
+    try {
+        var BBT = Packages.mindustry.entities.bullet.BasicBulletType;
+        var list = Vars.content.bullets();
+        for (var i = 0; i < list.size; i++) {
+            var ty = list.get(i);
+            try {
+                if (!(ty instanceof BBT)) continue;
+                var isAoE = (ty.splashDamage > 0) || (ty.splashDamageRadius > 0);
+                var reg = isAoE ? circRegion : triRegion;
+                var rec = [ty, null, false, null];
+                rec[1] = ty.region;
+                ty.region = reg;
+                try {
+                    if (ty.backRegion != null) { rec[2] = true; rec[3] = ty.backRegion; ty.backRegion = reg; }
+                } catch (e4) {}
+                ammoSaved.push(rec);
+            } catch (e2) {}
+        }
+        ammoApplied = true;
+    } catch (e) { Log.err("PvP-Alerts ammo sprite swap failed", e); }
+}
+
+function restoreAmmoSprites() {
+    if (!ammoApplied) return;
+    for (var i = 0; i < ammoSaved.length; i++) {
+        var r = ammoSaved[i];
+        try { r[0].region = r[1]; } catch (e) {}
+        try { if (r[2]) r[0].backRegion = r[3]; } catch (e2) {}
+    }
+    ammoSaved = [];
+    ammoApplied = false;
+}
+
+function syncAmmoSprites() {
+    if (showTurretDmg) applyAmmoSprites(); else restoreAmmoSprites();
 }
 
 Events.run(Trigger.drawOver, () => {
     try {
         jot.drawMouse();
 
+        if (showTurretDmg && !ammoApplied) { try { applyAmmoSprites(); } catch (e0) {} }
+
         Draw.draw(Layer.overlayUI + 0.01, run(() => {
             pips.each(t => {
                 try { t.draw(); } catch (e) { Log.err("PvP-Alerts pip draw failed", e); }
             });
         }));
-        if (showTurretDmg) {
-            Draw.draw(Layer.bullet + 0.11, run(() => {
-                try { drawAmmoShapes(); } catch (e) { Log.err("PvP-Alerts ammo shapes failed", e); }
-            }));
-        }
     } catch (e) { Log.err("PvP-Alerts drawOver failed", e); }
 });
 
@@ -804,6 +847,7 @@ var delayglitch = 0;
 var showTurretDmg = false;
 try { showTurretDmg = Core.settings.getBool("pvpnotifs-showturretdmg", false); } catch (e) {}
 var dmgBtnRef = null;
+try { syncAmmoSprites(); } catch (e) {}
 
 Events.run(Trigger.update, () => {
     try {
@@ -1199,7 +1243,8 @@ const onChat = function(sender, message) {
                 showTurretDmg = !showTurretDmg;
                 if (dmgBtnRef) dmgBtnRef.setChecked(showTurretDmg);
                 Core.settings.put("pvpnotifs-showturretdmg", showTurretDmg);
-                print("[green]PvP-Alerts: turret damage indicators " + (showTurretDmg ? "on" : "off"));
+                syncAmmoSprites();
+                print("[green]PvP-Alerts: ammo shape sprites (triangle/circle) " + (showTurretDmg ? "on" : "off"));
                 break;
         }
     }
