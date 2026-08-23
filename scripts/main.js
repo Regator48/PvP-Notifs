@@ -780,6 +780,7 @@ var ammoOrigSaved = false;
 var triRegion = null;
 var ringCache = {};
 var ammoSaved = [];
+var ammoOrigins = {};  // key -> {front, back} original regions
 var ammoStatus = "not applied yet";
 var ammoErrShown = false;
 
@@ -914,25 +915,25 @@ function applyAmmoSprites() {
                     reg = getRingRegion(R, boxMax);
                     if (reg == null) reg = triRegion;
                 }
-                if (reg == null) { skipped++; continue; } // don't set null region
-                // Save originals only once
-                if (!ammoOrigSaved) {
+                if (reg == null) { skipped++; continue; }
+                // Save originals in global map (persists across toggle cycles)
+                var tkey = "" + ty;
+                if (!ammoOrigins[tkey]) {
                     var origFront = frontField.get(ty);
                     var origBack = null;
                     if (backField != null) origBack = backField.get(ty);
-                    ammoSaved.push([ty, origFront, origBack]);
+                    ammoOrigins[tkey] = { front: origFront, back: origBack, ty: ty };
                 }
-                // Always set (survives content reloads)
+                // Set custom region
                 frontField.set(ty, reg);
                 if (backField != null) {
                     var curBack = backField.get(ty);
                     if (curBack != null) backField.set(ty, reg);
                 }
                 swapped++;
-            } catch (e2) { pvplog("ammo: swap err on " + ty + ": " + e2); }
+            } catch (e2) {}
         }
         ammoApplied = true;
-        ammoOrigSaved = true;
         ammoStatus = "swapped " + swapped + " bullet types (" + skipped + " non-basic skipped)";
         pvplog("ammo: " + ammoStatus);
     } catch (e) {
@@ -970,7 +971,25 @@ function syncAmmoSprites() {
     if (showTurretDmg) {
         applyAmmoSprites();
     } else {
-        // Just stop applying — originals restore on content reload (map change)
+        // Restore originals from global map
+        try {
+            var keys = Object.keys(ammoOrigins);
+            for (var i = 0; i < keys.length; i++) {
+                var o = ammoOrigins[keys[i]];
+                try {
+                    var cls = java.lang.Class.forName("mindustry.entities.bullet.BasicBulletType");
+                    var ff = cls.getDeclaredField("frontRegion");
+                    ff.setAccessible(true);
+                    ff.set(o.ty, o.front);
+                } catch (e) {}
+                try {
+                    var cls2 = java.lang.Class.forName("mindustry.entities.bullet.BasicBulletType");
+                    var bf = cls2.getDeclaredField("backRegion");
+                    bf.setAccessible(true);
+                    if (o.back != null) bf.set(o.ty, o.back);
+                } catch (e2) {}
+            }
+        } catch (e) {}
         ammoApplied = false;
     }
 }
@@ -1084,10 +1103,11 @@ Events.on(EventType.WorldLoadEvent, e => {
         clear();
         prevmap = Vars.state.map.name();
         pips.clear();
-        // Reset and re-apply ammo sprites after content reload
+        // Reset ammo after content reload
         ammoApplied = false;
         ammoOrigSaved = false;
         ammoSaved = [];
+        ammoOrigins = {};
         if (showTurretDmg) {
             try { applyAmmoSprites(); } catch (e0) {}
         }
