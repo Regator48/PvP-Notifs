@@ -850,39 +850,31 @@ function getRingRegion(radiusUnits, boxMaxUnits) {
     } catch (e) { return null; }
 }
 
-function findField(cls, name) {
-    var realCls = cls.class || cls;
-    // Try direct getDeclaredField first
+function findField(obj, name) {
+    // Get real java.lang.Class - either from instance.getClass() or Class.forName()
+    var realCls = null;
+    try { realCls = obj.getClass(); } catch (e1) {}
+    if (realCls == null) {
+        try { realCls = java.lang.Class.forName(obj.getName ? obj.getName() : "" + obj); } catch (e2) {}
+    }
+    if (realCls == null) { pvplog("findField: cannot get Class for " + obj); return null; }
+    // Try direct getDeclaredField
     try { var f = realCls.getDeclaredField(name); f.setAccessible(true); return f; } catch (e) {}
-    // Fallback: search all declared fields by name
-    try {
-        var fields = realCls.getDeclaredFields();
-        var names = [];
-        for (var i = 0; i < fields.length; i++) {
-            names.push("" + fields[i].getName());
-            if ("" + fields[i].getName() == name) { fields[i].setAccessible(true); return fields[i]; }
-        }
-        pvplog("fields on " + cls + ": " + names.join(", "));
-    } catch (e) { pvplog("getDeclaredFields err: " + e); }
-    // Last resort: walk superclasses
+    // Walk superclasses
     try {
         var c = realCls.getSuperclass();
         while (c != null) {
-            try {
-                var f = c.getDeclaredField(name); f.setAccessible(true); return f;
-            } catch (e2) {}
-            try {
-                var pfields = c.getDeclaredFields();
-                var pnames = [];
-                for (var j = 0; j < pfields.length; j++) {
-                    pnames.push("" + pfields[j].getName());
-                    if ("" + pfields[j].getName() == name) { pfields[j].setAccessible(true); return pfields[j]; }
-                }
-                pvplog("super " + c.getSimpleName() + " fields: " + pnames.join(", "));
-            } catch (e3) {}
-            try { c = c.getSuperclass(); } catch (e4) { break; }
+            try { var f = c.getDeclaredField(name); f.setAccessible(true); return f; } catch (e2) {}
+            try { c = c.getSuperclass(); } catch (e3) { break; }
         }
     } catch (e) {}
+    // Last resort: dump all fields
+    try {
+        var fields = realCls.getDeclaredFields();
+        var names = [];
+        for (var i = 0; i < fields.length; i++) names.push("" + fields[i].getName());
+        pvplog("fields on " + realCls.getSimpleName() + ": " + names.join(", "));
+    } catch (e) { pvplog("dump fields err: " + e); }
     return null;
 }
 
@@ -897,10 +889,16 @@ function applyAmmoSprites() {
         var BBT = Packages.mindustry.entities.bullet.BasicBulletType;
         var list = Vars.content.bullets();
         var swapped = 0, skipped = 0;
-        var frontField = findField(BBT, "frontRegion");
-        var backField = findField(BBT, "backRegion");
+        // Find a BasicBulletType instance for reflection
+        var sample = null;
+        for (var si = 0; si < list.size; si++) {
+            try { if (list.get(si) instanceof BBT) { sample = list.get(si); break; } } catch (e) {}
+        }
+        if (sample == null) { pvplog("ammo: no BasicBulletType instances found"); return; }
+        var frontField = findField(sample, "frontRegion");
+        var backField = findField(sample, "backRegion");
         pvplog("ammo: frontField=" + (frontField != null) + " backField=" + (backField != null) + " bullets=" + list.size);
-        if (frontField == null) { ammoStatus = "FAILED: cannot find frontRegion field on " + BBT; pvplog("ammo: " + ammoStatus); return; }
+        if (frontField == null) { ammoStatus = "FAILED: cannot find frontRegion field"; pvplog("ammo: " + ammoStatus); return; }
         for (var i = 0; i < list.size; i++) {
             var ty = list.get(i);
             try {
@@ -944,9 +942,11 @@ function applyAmmoSprites() {
 function restoreAmmoSprites() {
     if (!ammoApplied) return;
     try {
-        var BBT = Packages.mindustry.entities.bullet.BasicBulletType;
-        var frontField = findField(BBT, "frontRegion");
-        var backField = findField(BBT, "backRegion");
+        var frontField = null, backField = null;
+        if (ammoSaved.length > 0) {
+            frontField = findField(ammoSaved[0][0], "frontRegion");
+            backField = findField(ammoSaved[0][0], "backRegion");
+        }
         for (var i = 0; i < ammoSaved.length; i++) {
             var r = ammoSaved[i];
             try { if (frontField) frontField.set(r[0], r[1]); } catch (e) {}
