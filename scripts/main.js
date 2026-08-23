@@ -1999,7 +1999,7 @@ function checkForUpdates() {
                         var assets = pick.assets || [];
                         for (var a = 0; a < assets.length; a++) {
                             var an = "" + assets[a].name;
-                            if (/^PvP-Alerts-.*\.zip$/.test(an)) { assetUrl = assets[a].browser_download_url; break; }
+                            if (/^PvP-Alerts.*\.zip$/i.test(an)) { assetUrl = assets[a].browser_download_url; break; }
                         }
                     } catch (e2) {}
                     d.cont.add("Latest " + (beta ? "build" : "stable") + ": [white]" + tag + (pick.prerelease ? " [orange](beta)" : "")).pad(5).row();
