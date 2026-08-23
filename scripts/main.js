@@ -945,15 +945,16 @@ function applyAmmoSprites() {
 function restoreAmmoSprites() {
     if (!ammoApplied) return;
     try {
-        var frontField = null, backField = null;
-        if (ammoSaved.length > 0) {
-            frontField = findField(ammoSaved[0][0], "frontRegion");
-            backField = findField(ammoSaved[0][0], "backRegion");
-        }
         for (var i = 0; i < ammoSaved.length; i++) {
             var r = ammoSaved[i];
-            try { if (frontField) frontField.set(r[0], r[1]); } catch (e) {}
-            try { if (backField && r[2] != null) backField.set(r[0], r[2]); } catch (e2) {}
+            try {
+                var frontField = findField(r[0], "frontRegion");
+                if (frontField) frontField.set(r[0], r[1]);
+            } catch (e) {}
+            try {
+                var backField = findField(r[0], "backRegion");
+                if (backField && r[2] != null) backField.set(r[0], r[2]);
+            } catch (e2) {}
         }
     } catch (e) {}
     ammoSaved = [];
