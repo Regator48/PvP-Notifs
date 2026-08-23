@@ -757,38 +757,49 @@ function iterateOver(iterator, func) {
 }
 
 
-// --- ammo sprite replacement (v1.2.1) ---
+// --- ammo sprite replacement (v1.2.3) ---
 // Swaps BasicBulletType sprites for baked textures: hollow triangle (single-target),
 // ring sized to the type's real splashDamageRadius (AoE). Zero per-frame JS work.
+// Baking uses ONLY fillCircle-with-color (the primitive proven to work in 1.2.0);
+// no setColor / blending / transparent-punch calls that can throw and abort the swap.
 
 var ammoApplied = false;
 var ammoBuilt = false;
 var triRegion = null;
-var blankRegion = null;
 var ringCache = {};
 var ammoSaved = [];
+
+// Stamps overlapping dots along a line segment -> thick stroke.
+function stampLine(pm, x1, y1, x2, y2, r, color) {
+    var dx = x2 - x1, dy = y2 - y1;
+    var dist = Math.sqrt(dx * dx + dy * dy);
+    var steps = Math.max(Math.ceil(dist / (r * 0.9)), 2);
+    for (var i = 0; i <= steps; i++) {
+        var t = i / steps;
+        pm.fillCircle(Math.round(x1 + dx * t), Math.round(y1 + dy * t), r, color);
+    }
+}
+
+// Stamps dots around a circle -> ring outline.
+function stampRing(pm, cx, cy, radius, dotR, color) {
+    var circumference = 2 * Math.PI * radius;
+    var steps = Math.max(Math.ceil(circumference / (dotR * 0.8)), 8);
+    for (var j = 0; j < steps; j++) {
+        var ang = (j / steps) * 2 * Math.PI;
+        pm.fillCircle(Math.round(cx + Math.cos(ang) * radius), Math.round(cy + Math.sin(ang) * radius), dotR, color);
+    }
+}
 
 function ensureAmmoTextures() {
     if (ammoBuilt) return;
     try {
-        var S = 64;
-        var transparent = new Color(0, 0, 0, 0);
-        // hollow triangle: fill yellow, punch inner hole
-        var pt = new Pixmap(S, S);
-        pt.setColor(Color.yellow);
-        pt.fillTriangle(6, 56, 58, 56, 32, 8);
-        pt.setBlending(Pixmap.Blending.none);
-        pt.setColor(transparent);
-        pt.fillTriangle(15, 50, 49, 50, 32, 20);
+        // Hollow triangle: three thick yellow edges stamped with dots.
+        var pt = new Pixmap(64, 64);
+        stampLine(pt, 6, 56, 58, 56, 3, Color.yellow);   // base
+        stampLine(pt, 58, 56, 32, 8, 3, Color.yellow);   // right edge
+        stampLine(pt, 32, 8, 6, 56, 3, Color.yellow);    // left edge
         triRegion = new TextureRegion(new Texture(pt));
         pt.dispose();
-        // fully transparent region to hide backRegion outline layer
-        var pb = new Pixmap(8, 8);
-        pb.setBlending(Pixmap.Blending.none);
-        pb.setColor(transparent);
-        pb.fill();
-        blankRegion = new TextureRegion(new Texture(pb));
-        pb.dispose();
         ammoBuilt = true;
     } catch (e) { Log.err("PvP-Alerts ammo bake failed", e); }
 }
@@ -797,16 +808,12 @@ function ensureAmmoTextures() {
 // bullet's width x height box. Cached/quantized so only a handful of textures exist.
 function getRingRegion(radiusUnits, boxMaxUnits) {
     try {
+        if (!ringCache._ok) { ensureAmmoTextures(); if (!ammoBuilt) return null; }
         var frac = Math.min(Math.max(radiusUnits / Math.max(boxMaxUnits, 1), 0.12), 1.0);
         var key = Math.round(frac * 24);
         if (ringCache[key]) return ringCache[key];
-        var cx = 32, rpx = Math.round(frac * 30), stroke = 4;
         var pc = new Pixmap(64, 64);
-        pc.setColor(Color.orange);
-        pc.fillCircle(cx, cx, rpx);
-        pc.setBlending(Pixmap.Blending.none);
-        pc.setColor(new Color(0, 0, 0, 0));
-        pc.fillCircle(cx, cx, Math.max(rpx - stroke, 1));
+        stampRing(pc, 32, 32, Math.max(Math.round(frac * 28), 6), 3, Color.orange);
         var reg = new TextureRegion(new Texture(pc));
         pc.dispose();
         ringCache[key] = reg;
@@ -838,8 +845,9 @@ function applyAmmoSprites() {
                 var rec = [ty, null, false, null];
                 rec[1] = ty.region;
                 ty.region = reg;
+                // point the outline layer at the same shape so no stock sprite ghosts through
                 try {
-                    if (ty.backRegion != null) { rec[2] = true; rec[3] = ty.backRegion; ty.backRegion = blankRegion; }
+                    if (ty.backRegion != null) { rec[2] = true; rec[3] = ty.backRegion; ty.backRegion = reg; }
                 } catch (e4) {}
                 ammoSaved.push(rec);
             } catch (e2) {}
@@ -1633,8 +1641,9 @@ function showUpdateConfig() {
     d.show();
 }
 
-function zipModName(fi) {
+function zipModName(fi, fieldName) {
     try {
+        var key = fieldName || "name";
         var bytes = fi.readBytes();
         var zis = new java.util.zip.ZipInputStream(new java.io.ByteArrayInputStream(bytes));
         var buf = java.lang.reflect.Array.newInstance(java.lang.Byte.TYPE, 8192);
@@ -1647,13 +1656,39 @@ function zipModName(fi) {
                 while ((len = zis.read(buf)) > 0) baos.write(buf, 0, len);
                 zis.closeEntry();
                 zis.close();
-                return jsonField(new java.lang.String(baos.toByteArray(), "UTF-8"), "name");
+                return jsonField(new java.lang.String(baos.toByteArray(), "UTF-8"), key);
             }
             zis.closeEntry();
         }
         zis.close();
     } catch (e) {}
     return null;
+}
+
+// Reads the installed mod's version robustly: Mods API -> mod.json on disk.
+function localModVersion() {
+    var v = "";
+    try {
+        var m = Vars.mods.getMod("PvP-Alerts");
+        if (m) {
+            try { if (m.meta && m.meta.version) v = "" + m.meta.version; } catch (e1) {}
+            if (!v) { try { if (m.version) v = "" + m.version; } catch (e2) {} }
+        }
+    } catch (e) {}
+    if (!v) {
+        try {
+            var f = findModFile();
+            if (f && f.exists()) {
+                if (f.isDirectory()) {
+                    var mj = f.child("mod.json");
+                    if (mj.exists()) v = jsonField(mj.readString(), "version") || "";
+                } else {
+                    v = zipModName(f, "version") || "";
+                }
+            }
+        } catch (e3) {}
+    }
+    return v || "0.0.0";
 }
 
 function findModFile() {
@@ -1825,11 +1860,7 @@ function isNewerVersion(remote, local) {
 }
 
 function checkForUpdates() {
-    var currentVersion = "1.0.0";
-    try {
-        var mod = Vars.mods.getMod("PvP-Alerts");
-        if (mod && mod.version) currentVersion = mod.version;
-    } catch (e) {}
+    var currentVersion = localModVersion();
 
     var repo = getRepo();
     var beta = isBeta();
