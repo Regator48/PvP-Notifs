@@ -799,6 +799,7 @@ function stampRing(pm, cx, cy, radius, dotR, color) {
 }
 
 function ensureAmmoTextures() {
+    print("[yellow]ensureAmmo: called, already built=" + ammoBuilt);
     if (ammoBuilt) return;
     try {
         var YELLOW = 0xffff00ff | 0;  // signed 32-bit int for arc Pixmap
@@ -862,6 +863,7 @@ function findField(cls, name) {
 }
 
 function applyAmmoSprites() {
+    print("[yellow]applyAmmo: called");
     try {
         if (!Vars.content || !Vars.content.bullets || Vars.content.bullets().size == 0) { ammoStatus = "waiting: content not loaded"; print("[yellow]ammo: content not loaded yet"); return; }
     } catch (e) { ammoStatus = "waiting: content error " + e; print("[red]ammo: content error " + e); return; }
@@ -932,6 +934,7 @@ function restoreAmmoSprites() {
 }
 
 function syncAmmoSprites() {
+    print("[yellow]syncAmmo: showTurretDmg=" + showTurretDmg + " ammoBuilt=" + ammoBuilt);
     if (showTurretDmg) applyAmmoSprites(); else restoreAmmoSprites();
 }
 
@@ -941,7 +944,7 @@ Events.run(Trigger.drawOver, () => {
 
         // Brute-force: re-apply swap every frame in case content load reset it
         if (showTurretDmg && ammoBuilt) {
-            try { applyAmmoSprites(); } catch (e0) {}
+            try { applyAmmoSprites(); } catch (e0) { print("[red]drawOver apply err: " + e0); }
         }
 
         Draw.draw(Layer.overlayUI + 0.01, run(() => {
