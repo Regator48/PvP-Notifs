@@ -598,6 +598,15 @@ Events.on(EventType.ClientLoadEvent,
             showTechSummary();
         })).width(46).height(46).name("techsummary").tooltip("enemy tech summary");
 
+        var dmgBtn = t.button(Icon.star, Styles.clearTogglei, run(() => {
+            showTurretDmg = !showTurretDmg;
+            dmgBtn.setChecked(showTurretDmg);
+            Core.settings.put("pvpnotifs-showturretdmg", showTurretDmg);
+            syncAmmoSprites();
+        })).width(46).height(46).name("turretdmg").tooltip("ammo shapes: replaces your team's bullet sprites with yellow triangles (single-target) / orange circles (AoE) — lighter than stock sprites").get();
+        dmgBtn.setChecked(showTurretDmg);
+        dmgBtnRef = dmgBtn;
+
         var updateLongFired = false;
         var updateTimer = null;
         var updateBtn = t.button(Icon.settings, style, run(() => {})).width(46).height(46).name("update").tooltip("check for updates (hold / right-click to choose branch)").get();
@@ -623,15 +632,6 @@ Events.on(EventType.ClientLoadEvent,
                 return true;
             }
         }));
-
-        var dmgBtn = t.button(Icon.star, Styles.clearTogglei, run(() => {
-            showTurretDmg = !showTurretDmg;
-            dmgBtn.setChecked(showTurretDmg);
-            Core.settings.put("pvpnotifs-showturretdmg", showTurretDmg);
-            syncAmmoSprites();
-        })).width(46).height(46).name("turretdmg").tooltip("ammo shapes: replaces your team's bullet sprites with yellow triangles (single-target) / orange circles (AoE) — lighter than stock sprites").get();
-        dmgBtn.setChecked(showTurretDmg);
-        dmgBtnRef = dmgBtn;
 
         t.pack();
         t.setPosition(savedBtnX, savedBtnY);
