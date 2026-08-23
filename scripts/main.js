@@ -1065,11 +1065,6 @@ Events.run(Trigger.update, () => {
 
     iterateOver(Vars.indexer.getFlagged(Vars.player.team(), BlockFlag.generator).iterator(), tilecons);
     iterateOver(Vars.indexer.getFlagged(Vars.player.team(), BlockFlag.reactor).iterator(), tilecons);
-    // Brute-force: re-apply swap every tick in case content load reset it
-    if (showTurretDmg && ammoBuilt) {
-        try { applyAmmoSprites(); } catch (e0) {}
-    }
-
     } catch (e) { Log.err("PvP-Alerts update loop failed", e); }
 });
 
@@ -1080,6 +1075,13 @@ Events.on(EventType.WorldLoadEvent, e => {
         clear();
         prevmap = Vars.state.map.name();
         pips.clear();
+        // Re-apply ammo sprites after content reload
+        if (showTurretDmg && ammoBuilt) {
+            ammoApplied = false;
+            ammoOrigSaved = false;
+            ammoSaved = [];
+            try { applyAmmoSprites(); } catch (e0) {}
+        }
     }
 });
 

@@ -3,7 +3,7 @@
     "displayName": "PvP Alerts v159",
     "author": "Xelo, JohnTing, Altair",
     "description": "PvP alerts, enemy production tracking, tech tree alerts, turrets range, /sync, ammo shape sprites",
-    "version": "1.4.4",
+    "version": "1.4.5",
     "minGameVersion": 159,
     "java": false,
     "hidden": true,
