@@ -1,3 +1,4 @@
+print("[green]PvP-Alerts v1.3.7 loaded!");
 const jot = require("jotfunction");
 
 global.alerts = {};
@@ -599,6 +600,7 @@ Events.on(EventType.ClientLoadEvent,
         })).width(46).height(46).name("techsummary").tooltip("enemy tech summary");
 
         var dmgBtn = t.button(Icon.star, Styles.clearTogglei, run(() => {
+            print("[green]STAR BUTTON PRESSED! showTurretDmg was=" + showTurretDmg);
             showTurretDmg = !showTurretDmg;
             dmgBtn.setChecked(showTurretDmg);
             Core.settings.put("pvpnotifs-showturretdmg", showTurretDmg);
