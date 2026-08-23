@@ -1,6 +1,10 @@
-print("[green]PvP-Alerts v1.3.8 loaded!");
-try { Vars.ui.showInfoToast("PvP-Alerts v1.3.8 loaded!", 5); } catch(e) {}
+print("[green]PvP-Alerts v1.3.10 loaded!");
 const jot = require("jotfunction");
+
+function pvplog(msg) {
+    try { Vars.ui.chatfrag.addMessage("[yellow][PvP] " + msg); } catch(e) {}
+    try { Vars.ui.showInfoToast(msg, 4); } catch(e) {}
+}
 
 global.alerts = {};
 var lastUnlockTable = null;
@@ -601,8 +605,7 @@ Events.on(EventType.ClientLoadEvent,
         })).width(46).height(46).name("techsummary").tooltip("enemy tech summary");
 
         var dmgBtn = t.button(Icon.star, Styles.clearTogglei, run(() => {
-            try { Vars.ui.showInfoToast("STAR PRESSED! showTurretDmg=" + showTurretDmg, 3); } catch(e) {}
-            print("[green]STAR BUTTON PRESSED! showTurretDmg was=" + showTurretDmg);
+            pvplog("STAR PRESSED! was=" + showTurretDmg);
             showTurretDmg = !showTurretDmg;
             dmgBtn.setChecked(showTurretDmg);
             Core.settings.put("pvpnotifs-showturretdmg", showTurretDmg);
@@ -803,7 +806,6 @@ function stampRing(pm, cx, cy, radius, dotR, color) {
 }
 
 function ensureAmmoTextures() {
-    print("[yellow]ensureAmmo: called, already built=" + ammoBuilt);
     if (ammoBuilt) return;
     try {
         var YELLOW = 0xffff00ff | 0;  // signed 32-bit int for arc Pixmap
@@ -870,20 +872,20 @@ function findField(cls, name) {
 }
 
 function applyAmmoSprites() {
-    print("[yellow]applyAmmo: called");
+    pvplog("applyAmmo: called");
     try {
-        if (!Vars.content || !Vars.content.bullets || Vars.content.bullets().size == 0) { ammoStatus = "waiting: content not loaded"; print("[yellow]ammo: content not loaded yet"); return; }
-    } catch (e) { ammoStatus = "waiting: content error " + e; print("[red]ammo: content error " + e); return; }
+        if (!Vars.content || !Vars.content.bullets || Vars.content.bullets().size == 0) { ammoStatus = "waiting: content not loaded"; pvplog("ammo: content not loaded yet"); return; }
+    } catch (e) { ammoStatus = "waiting: content error " + e; pvplog("ammo: content error " + e); return; }
     ensureAmmoTextures();
-    if (!ammoBuilt) { print("[red]ammo: bake failed"); return; }
+    if (!ammoBuilt) { pvplog("ammo: bake failed"); return; }
     try {
         var BBT = Packages.mindustry.entities.bullet.BasicBulletType;
         var list = Vars.content.bullets();
         var swapped = 0, skipped = 0;
         var frontField = findField(BBT, "frontRegion");
         var backField = findField(BBT, "backRegion");
-        print("[yellow]ammo: frontField=" + (frontField != null) + " backField=" + (backField != null) + " bullets=" + list.size);
-        if (frontField == null) { ammoStatus = "FAILED: cannot find frontRegion field on " + BBT; print("[red]ammo: " + ammoStatus); return; }
+        pvplog("ammo: frontField=" + (frontField != null) + " backField=" + (backField != null) + " bullets=" + list.size);
+        if (frontField == null) { ammoStatus = "FAILED: cannot find frontRegion field on " + BBT; pvplog("ammo: " + ammoStatus); return; }
         for (var i = 0; i < list.size; i++) {
             var ty = list.get(i);
             try {
@@ -911,17 +913,15 @@ function applyAmmoSprites() {
                     if (curBack != null) backField.set(ty, reg);
                 }
                 swapped++;
-            } catch (e2) { print("[red]ammo: swap err on " + ty + ": " + e2); }
+            } catch (e2) { pvplog("ammo: swap err on " + ty + ": " + e2); }
         }
         ammoApplied = true;
         ammoOrigSaved = true;
         ammoStatus = "swapped " + swapped + " bullet types (" + skipped + " non-basic skipped)";
-        print("[green]ammo: " + ammoStatus);
-        try { Vars.ui.showInfoToast("ammo: " + ammoStatus, 5); } catch(e) {}
+        pvplog("ammo: " + ammoStatus);
     } catch (e) {
         ammoStatus = "SWAP FAILED: " + e;
-        print("[red]ammo: " + ammoStatus);
-        try { Vars.ui.showInfoToast("ammo FAILED: " + e, 5); } catch(e) {}
+        pvplog("ammo: " + ammoStatus);
         Log.err("PvP-Alerts ammo sprite swap failed", e);
     }
 }
@@ -943,8 +943,7 @@ function restoreAmmoSprites() {
 }
 
 function syncAmmoSprites() {
-    print("[yellow]syncAmmo: showTurretDmg=" + showTurretDmg + " ammoBuilt=" + ammoBuilt);
-    try { Vars.ui.showInfoToast("syncAmmo: on=" + showTurretDmg + " built=" + ammoBuilt, 3); } catch(e) {}
+    pvplog("syncAmmo: on=" + showTurretDmg + " built=" + ammoBuilt);
     if (showTurretDmg) applyAmmoSprites(); else restoreAmmoSprites();
 }
 
@@ -954,7 +953,7 @@ Events.run(Trigger.drawOver, () => {
 
         // Brute-force: re-apply swap every frame in case content load reset it
         if (showTurretDmg && ammoBuilt) {
-            try { applyAmmoSprites(); } catch (e0) { print("[red]drawOver apply err: " + e0); }
+            try { applyAmmoSprites(); } catch (e0) { pvplog("drawOver apply err: " + e0); }
         }
 
         Draw.draw(Layer.overlayUI + 0.01, run(() => {
@@ -1927,14 +1926,14 @@ function downloadAndReplace(zipUrlOverride) {
                 d.cont.button("Restart now", function() {
                     d.hide();
                     try {
-                        // Re-launch Mindustry from the same jar/classpath, then exit
-                        var jar = Core.class.getProtectionDomain().getCodeSource().getLocation().toURI().getPath();
-                        var pb = new java.lang.ProcessBuilder("java", "-jar", jar);
+                        var url = Core.class.getProtectionDomain().getCodeSource().getLocation();
+                        var jar = new java.io.File(new java.net.URI("" + url));
+                        var pb = new java.lang.ProcessBuilder("java", "-jar", jar.getAbsolutePath());
                         pb.directory(new java.io.File(Core.files.localStoragePath().parent().path()));
                         pb.start();
                     } catch (e) {
-                        // Fallback: just exit, user re-opens manually
                         Log.warn("Auto-restart failed, exiting: " + e);
+                        pvplog("Auto-restart failed: " + e);
                     }
                     Core.app.exit();
                 }).width(180).color(Color.green);
