@@ -1,4 +1,5 @@
-print("[green]PvP-Alerts v1.3.7 loaded!");
+print("[green]PvP-Alerts v1.3.8 loaded!");
+try { Vars.ui.showInfoToast("PvP-Alerts v1.3.8 loaded!", 5); } catch(e) {}
 const jot = require("jotfunction");
 
 global.alerts = {};
@@ -600,6 +601,7 @@ Events.on(EventType.ClientLoadEvent,
         })).width(46).height(46).name("techsummary").tooltip("enemy tech summary");
 
         var dmgBtn = t.button(Icon.star, Styles.clearTogglei, run(() => {
+            try { Vars.ui.showInfoToast("STAR PRESSED! showTurretDmg=" + showTurretDmg, 3); } catch(e) {}
             print("[green]STAR BUTTON PRESSED! showTurretDmg was=" + showTurretDmg);
             showTurretDmg = !showTurretDmg;
             dmgBtn.setChecked(showTurretDmg);
@@ -912,9 +914,11 @@ function applyAmmoSprites() {
         ammoOrigSaved = true;
         ammoStatus = "swapped " + swapped + " bullet types (" + skipped + " non-basic skipped)";
         print("[green]ammo: " + ammoStatus);
+        try { Vars.ui.showInfoToast("ammo: " + ammoStatus, 5); } catch(e) {}
     } catch (e) {
         ammoStatus = "SWAP FAILED: " + e;
         print("[red]ammo: " + ammoStatus);
+        try { Vars.ui.showInfoToast("ammo FAILED: " + e, 5); } catch(e) {}
         Log.err("PvP-Alerts ammo sprite swap failed", e);
     }
 }
@@ -937,6 +941,7 @@ function restoreAmmoSprites() {
 
 function syncAmmoSprites() {
     print("[yellow]syncAmmo: showTurretDmg=" + showTurretDmg + " ammoBuilt=" + ammoBuilt);
+    try { Vars.ui.showInfoToast("syncAmmo: on=" + showTurretDmg + " built=" + ammoBuilt, 3); } catch(e) {}
     if (showTurretDmg) applyAmmoSprites(); else restoreAmmoSprites();
 }
 
