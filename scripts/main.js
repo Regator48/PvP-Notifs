@@ -800,7 +800,7 @@ function stampRing(pm, cx, cy, radius, dotR, color) {
 function ensureAmmoTextures() {
     if (ammoBuilt) return;
     try {
-        var YELLOW = 0xffff00ff;  // packed RGBA: yellow
+        var YELLOW = 0xffff00ff | 0;  // signed 32-bit int for arc Pixmap
         // Fat hollow triangle — full span, stroke radius 7 dots.
         // Headless test confirmed 53% coverage, clearly visible at bullet scale.
         var pt = new Pixmap(64, 64);
@@ -826,7 +826,7 @@ function ensureAmmoTextures() {
 function getRingRegion(radiusUnits, boxMaxUnits) {
     try {
         if (!ringCache._ok) { ensureAmmoTextures(); if (!ammoBuilt) return null; }
-        var ORANGE = 0xffa500ff;  // packed RGBA: orange
+        var ORANGE = 0xffa500ff | 0;  // signed 32-bit int for arc Pixmap
         var frac = Math.min(Math.max(radiusUnits / Math.max(boxMaxUnits, 1), 0.12), 1.0);
         var key = Math.round(frac * 24);
         if (ringCache[key]) return ringCache[key];
