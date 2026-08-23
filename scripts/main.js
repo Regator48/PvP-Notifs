@@ -765,6 +765,7 @@ function iterateOver(iterator, func) {
 
 var ammoApplied = false;
 var ammoBuilt = false;
+var ammoOrigSaved = false;
 var triRegion = null;
 var ringCache = {};
 var ammoSaved = [];
@@ -848,12 +849,10 @@ function applyAmmoSprites() {
     } catch (e) { ammoStatus = "waiting: content error " + e; return; }
     ensureAmmoTextures();
     if (!ammoBuilt) return;
-    if (ammoApplied) return;
     try {
         var BBT = Packages.mindustry.entities.bullet.BasicBulletType;
         var list = Vars.content.bullets();
         var swapped = 0, skipped = 0;
-        // Use Java reflection to set fields — Rhino property assignment doesn't persist to Java fields
         var frontField = null, backField = null;
         try { frontField = BBT.class.getDeclaredField("frontRegion"); frontField.setAccessible(true); } catch (ef) {}
         try { backField = BBT.class.getDeclaredField("backRegion"); backField.setAccessible(true); } catch (eb) {}
@@ -870,16 +869,24 @@ function applyAmmoSprites() {
                     reg = getRingRegion(R, boxMax);
                     if (reg == null) reg = triRegion;
                 }
-                var origFront = frontField.get(ty);
-                var origBack = null;
-                if (backField != null) origBack = backField.get(ty);
+                // Save originals only once
+                if (!ammoOrigSaved) {
+                    var origFront = frontField.get(ty);
+                    var origBack = null;
+                    if (backField != null) origBack = backField.get(ty);
+                    ammoSaved.push([ty, origFront, origBack]);
+                }
+                // Always set (survives content reloads)
                 frontField.set(ty, reg);
-                if (backField != null && origBack != null) backField.set(ty, reg);
-                ammoSaved.push([ty, origFront, origBack]);
+                if (backField != null) {
+                    var curBack = backField.get(ty);
+                    if (curBack != null) backField.set(ty, reg);
+                }
                 swapped++;
             } catch (e2) {}
         }
         ammoApplied = true;
+        ammoOrigSaved = true;
         ammoStatus = "swapped " + swapped + " bullet types (" + skipped + " non-basic skipped)";
     } catch (e) {
         ammoStatus = "SWAP FAILED: " + e;
@@ -912,7 +919,10 @@ Events.run(Trigger.drawOver, () => {
     try {
         jot.drawMouse();
 
-        if (showTurretDmg && !ammoApplied) { try { applyAmmoSprites(); } catch (e0) {} }
+        // Brute-force: re-apply swap every frame in case content load reset it
+        if (showTurretDmg && ammoBuilt) {
+            try { applyAmmoSprites(); } catch (e0) {}
+        }
 
         Draw.draw(Layer.overlayUI + 0.01, run(() => {
             pips.each(t => {
