@@ -764,15 +764,18 @@ function drawAmmoShapes() {
             var t = b.type;
             if (t == null) return;
             var isAoE = (t.splashDamage > 0) || (t.splashDamageRadius > 0);
+            var rot = 90;
+            try { if (b.vel != null) rot = b.vel.angle(); } catch (e2) {}
             if (isAoE) {
-                var r = t.splashDamageRadius > 0 ? t.splashDamageRadius : Mathf.clamp(t.splashDamage * 0.6, 4, 200);
+                var r = t.splashDamageRadius > 0 ? t.splashDamageRadius : Mathf.clamp(t.splashDamage * 0.6, 8, 200);
+                Draw.color(Color.darkGray);
+                Drawf.circles(b.x, b.y, r + 1.5, Color.darkGray);
                 Drawf.circles(b.x, b.y, r, Color.orange);
             } else {
-                var s = Mathf.clamp(Math.sqrt(t.damage) * 0.9, 2, 12);
+                var s = Mathf.clamp(Math.sqrt(Math.max(t.damage, 1)) * 1.6, 7, 24);
+                Drawf.tri(b.x, b.y, s * 1.45, s * 1.9, rot); // dark outline
                 Draw.color(Color.yellow);
-                var rot = 90;
-                try { if (b.vel != null) rot = b.vel.angle(); } catch (e2) {}
-                Drawf.tri(b.x, b.y, s * 1.2, s * 1.6, rot);
+                Drawf.tri(b.x, b.y, s, s * 1.4, rot);
             }
         } catch (e) {}
     });
@@ -789,7 +792,7 @@ Events.run(Trigger.drawOver, () => {
             });
         }));
         if (showTurretDmg) {
-            Draw.draw(Layer.overlayUI + 0.02, run(() => {
+            Draw.draw(Layer.bullet + 0.11, run(() => {
                 try { drawAmmoShapes(); } catch (e) { Log.err("PvP-Alerts ammo shapes failed", e); }
             }));
         }
