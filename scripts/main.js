@@ -1902,7 +1902,30 @@ function downloadAndReplace(zipUrlOverride) {
                 zos.close();
                 modFile.writeBytes(baos.toByteArray());
             }
-            Vars.ui.showInfoToast("Update applied! Restart Mindustry to load it.", 6);
+            // Show restart dialog instead of just a toast
+            Core.app.post(function() {
+                var d = new BaseDialog("Update Applied");
+                d.cont.add("[green]Update applied successfully!").pad(10).row();
+                d.cont.add("[gray]Restart to load the new version.").pad(5).row();
+                d.cont.button("Restart now", function() {
+                    d.hide();
+                    try {
+                        // Re-launch Mindustry from the same jar/classpath, then exit
+                        var jar = Core.class.getProtectionDomain().getCodeSource().getLocation().toURI().getPath();
+                        var pb = new java.lang.ProcessBuilder("java", "-jar", jar);
+                        pb.directory(new java.io.File(Core.files.localStoragePath().parent().path()));
+                        pb.start();
+                    } catch (e) {
+                        // Fallback: just exit, user re-opens manually
+                        Log.warn("Auto-restart failed, exiting: " + e);
+                    }
+                    Core.app.exit();
+                }).width(180).color(Color.green);
+                d.cont.button("Later", function() {
+                    d.hide();
+                }).width(120).color(Color.gray);
+                d.show();
+            });
         } catch (err) {
             Log.err("Update extract failed", err);
             Vars.ui.showErrorMessage("Extract failed: " + err);
