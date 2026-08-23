@@ -1499,14 +1499,6 @@ function getRawUrl() {
     return "https://raw.githubusercontent.com/" + getRepo() + "/" + getBranch() + "/mod.json";
 }
 
-function getCommitsUrl() {
-    try {
-        var c = Core.settings.getString("pvpnotifs-commitsurl", "").trim();
-        if (c.length > 0) return c;
-    } catch (e) {}
-    return "https://api.github.com/repos/" + getRepo() + "/commits?sha=" + getBranch();
-}
-
 function getZipUrl() {
     try {
         var c = Core.settings.getString("pvpnotifs-zipurl", "").trim();
@@ -1527,12 +1519,6 @@ function getGiteeRawUrl() {
     var g = getGitee();
     if (g.length == 0) return "";
     return "https://gitee.com/" + g + "/raw/" + getBranch() + "/mod.json";
-}
-
-function getGiteeCommitsUrl() {
-    var g = getGitee();
-    if (g.length == 0) return "";
-    return "https://gitee.com/api/v5/repos/" + g + "/commits?sha=" + getBranch() + "&per_page=1";
 }
 
 function getGiteeZipUrl() {
@@ -1597,25 +1583,20 @@ function showUpdateConfig() {
         beta = false;
         rebuild();
     }).width(150).color(Color.green).get();
-    betaBtn = d.cont.button("Beta (latest commit)", function() {
+    betaBtn = d.cont.button("Beta (pre-releases)", function() {
         beta = true;
         rebuild();
     }).width(200).color(Color.gray).get();
     d.cont.row();
     rebuild();
 
-    d.cont.add("[gray]Stable mode compares the mod version. Beta follows the newest pushed").padTop(8).row();
-    d.cont.add("[gray]commit and downloads it to replace your local mod.").row();
+    d.cont.add("[gray]Stable downloads the newest release marked stable.").padTop(8).row();
+    d.cont.add("[gray]Beta also includes pre-release builds (fresh pushes, before testing).").row();
 
     var rawField = new TextField(getRawUrl());
     rawField.setMaxLength(500);
     d.cont.add("mod.json URL (mirror for GFW):").padTop(8).row();
     d.cont.add(rawField).width(440).row();
-
-    var commitsField = new TextField(getCommitsUrl());
-    commitsField.setMaxLength(500);
-    d.cont.add("Commits API URL (beta, mirror):").padTop(4).row();
-    d.cont.add(commitsField).width(440).row();
 
     var zipField = new TextField(getZipUrl());
     zipField.setMaxLength(500);
@@ -1632,9 +1613,11 @@ function showUpdateConfig() {
         Core.settings.put("pvpnotifs-branch", branchField.getText().trim());
         Core.settings.put("pvpnotifs-beta", beta);
         Core.settings.put("pvpnotifs-rawurl", rawField.getText().trim());
-        Core.settings.put("pvpnotifs-commitsurl", commitsField.getText().trim());
         Core.settings.put("pvpnotifs-zipurl", zipField.getText().trim());
         Core.settings.put("pvpnotifs-gitee", giteeField.getText().trim());
+        // clear legacy keys from the old commit-SHA updater
+        Core.settings.put("pvpnotifs-commitsurl", "");
+        Core.settings.put("pvpnotifs-lastsha", "");
         d.hide();
         checkForUpdates();
     }).width(120);
@@ -1721,8 +1704,8 @@ function findModFile() {
     return null;
 }
 
-function downloadAndReplace() {
-    var zipUrl = getZipUrl();
+function downloadAndReplace(zipUrlOverride) {
+    var zipUrl = zipUrlOverride || getZipUrl();
     Vars.ui.showInfoToast("Downloading update (" + getBranch() + ") ...", 4);
     httpGetFallback(zipUrl, getGiteeZipUrl(), function(response) {
         try {
@@ -1822,6 +1805,25 @@ function downloadAndReplace() {
     });
 }
 
+function semverTuple(v) {
+    try {
+        var m = ("" + v).trim().replace(/^v/i, "").match(/(\d+)\.(\d+)\.(\d+)/);
+        if (m) return [parseInt(m[1], 10), parseInt(m[2], 10), parseInt(m[3], 10)];
+    } catch (e) {}
+    return null;
+}
+
+function isNewerVersion(remote, local) {
+    var r = semverTuple(remote), l = semverTuple(local);
+    if (r && l) {
+        if (r[0] != l[0]) return r[0] > l[0];
+        if (r[1] != l[1]) return r[1] > l[1];
+        if (r[2] != l[2]) return r[2] > l[2];
+        return false;
+    }
+    return ("" + remote) !== ("" + local);
+}
+
 function checkForUpdates() {
     var currentVersion = "1.0.0";
     try {
@@ -1832,108 +1834,96 @@ function checkForUpdates() {
     var repo = getRepo();
     var beta = isBeta();
 
-    if (beta) {
-        var curl = getCommitsUrl();
-        httpGetFallback(curl, getGiteeCommitsUrl(), function(response) {
-            try {
-                var data = JSON.parse(response.getResultAsString());
-                var sha = null;
-                if (data && data.length !== undefined && data.length > 0) {
-                    sha = data[0] && data[0].sha ? data[0].sha : null;
-                } else if (data && data.sha) {
-                    sha = data.sha;
-                }
-                var last = "";
-                try { last = Core.settings.getString("pvpnotifs-lastsha", ""); } catch (e2) {}
-                Core.app.post(function() {
-                    var d = new BaseDialog("Beta Update Check");
-                    d.addCloseButton();
-                    d.cont.add("Branch: [white]" + getBranch()).pad(5).row();
-                    d.cont.add("Local commit: [white]" + (last.substring(0, 8) || "none")).pad(5).row();
-                    d.cont.add("Latest commit: [white]" + (sha ? sha.substring(0, 8) : "unknown")).pad(5).row();
-                    if (sha && sha !== last) {
-                        d.cont.add("[yellow]A newer beta build is available.").pad(5).row();
-                        d.cont.button("Download & Replace", function() {
-                            Core.settings.put("pvpnotifs-lastsha", sha);
-                            d.hide();
-                            downloadAndReplace();
-                        }).width(180).color(Color.green);
-                        d.cont.button("Skip", function() {
-                            Core.settings.put("pvpnotifs-lastsha", sha);
-                            d.hide();
-                        }).width(120).color(Color.gray);
-                    } else {
-                        d.cont.add("You have the latest beta build.").pad(5).row();
-                    }
-                    d.show();
-                });
-            } catch (err) {
-                Log.err("Beta update parse failed", err);
-                Vars.ui.showErrorMessage("Could not read commit info.");
+    // Primary: GitHub Releases API.
+    // Stable channel = newest non-prerelease release. Beta channel = newest build of any kind.
+    // Downloads the release's PvP-Alerts-*.zip asset directly in-game.
+    var releasesUrl = "https://api.github.com/repos/" + repo + "/releases?per_page=30";
+    httpGetFallback(releasesUrl, "", function(response) {
+        try {
+            var arr = JSON.parse(response.getResultAsString());
+            if (!arr || arr.length === undefined) throw new Error("unexpected releases payload");
+            var pick = null;
+            for (var i = 0; i < arr.length; i++) {
+                var r = arr[i];
+                if (!r || r.draft) continue;
+                if (beta || !r.prerelease) { pick = r; break; }
             }
-        }, function(e) {
-            Log.warn("Beta commit check failed, falling back to version check", e);
-            httpGetFallback(getRawUrl(), getGiteeRawUrl(), function(response) {
-                var latestVersion = jsonField(response.getResultAsString(), "version");
-                Core.app.post(function() {
-                    var d = new BaseDialog("Beta Update Check");
-                    d.addCloseButton();
-                    d.cont.add("Branch: [white]" + getBranch() + "  (commit API unreachable)").pad(5).row();
-                    d.cont.add("PvP-Alerts v" + currentVersion).pad(5).row();
-                    if (latestVersion != null) {
-                        d.cont.add("Latest: v" + latestVersion).pad(5).row();
-                        if (latestVersion !== currentVersion) {
-                            d.cont.add("[yellow]A newer build is available.").pad(5).row();
+            Core.app.post(function() {
+                var d = new BaseDialog(beta ? "Beta Update Check" : "Update Check");
+                d.addCloseButton();
+                d.cont.add("Channel: [white]" + (beta ? "beta (pre-releases)" : "stable")).pad(5).row();
+                d.cont.add("Installed: [white]v" + currentVersion).pad(5).row();
+                var offered = false;
+                if (pick == null) {
+                    d.cont.add("[red]No matching release found.").pad(5).row();
+                    d.cont.button("Open Releases", function() {
+                        Core.app.openURI("https://github.com/" + repo + "/releases");
+                        d.hide();
+                    }).width(160).color(Color.green);
+                } else {
+                    var tag = "" + (pick.tag_name || "");
+                    var latestV = tag.replace(/^v/i, "");
+                    var assetUrl = null;
+                    try {
+                        var assets = pick.assets || [];
+                        for (var a = 0; a < assets.length; a++) {
+                            var an = "" + assets[a].name;
+                            if (/^PvP-Alerts-.*\.zip$/.test(an)) { assetUrl = assets[a].browser_download_url; break; }
+                        }
+                    } catch (e2) {}
+                    d.cont.add("Latest " + (beta ? "build" : "stable") + ": [white]" + tag + (pick.prerelease ? " [orange](beta)" : "")).pad(5).row();
+                    if (isNewerVersion(latestV, currentVersion)) {
+                        if (assetUrl != null) {
+                            d.cont.add("[yellow]Update available.").pad(5).row();
                             d.cont.button("Download & Replace", function() {
                                 d.hide();
-                                downloadAndReplace();
+                                downloadAndReplace(assetUrl);
                             }).width(180).color(Color.green);
-                            d.cont.button("Skip", function() { d.hide(); }).width(120).color(Color.gray);
+                            offered = true;
                         } else {
-                            d.cont.add("You have the latest build.").pad(5).row();
+                            d.cont.add("[yellow]Update available, but the release has no PvP-Alerts-*.zip asset.").pad(5).row();
                         }
                     } else {
-                        d.cont.add("Could not read version info.").pad(5).row();
+                        d.cont.add("You have the latest " + (beta ? "beta build." : "version."));
+                        d.cont.row();
                     }
-                    d.show();
-                });
-            }, function(e2) {
-                Log.warn("Beta update check failed", e2);
-                Vars.ui.showErrorMessage("Update check failed: " + ((e2 && e2.getMessage) ? e2.getMessage() : e2));
-            });
-        });
-        return;
-    }
-
-    var url = getRawUrl();
-    httpGetFallback(url, getGiteeRawUrl(), function(response) {
-        var json = response.getResultAsString();
-        var latestVersion = jsonField(json, "version");
-        Core.app.post(function() {
-            var dialog = new BaseDialog("Update Check");
-            dialog.addCloseButton();
-            dialog.cont.add("PvP-Notifs v" + currentVersion).pad(10).row();
-            if (latestVersion != null) {
-                dialog.cont.add("Latest: v" + latestVersion).pad(10).row();
-                if (latestVersion !== currentVersion) {
-                    dialog.cont.add("An update is available!").pad(10).row();
-                    dialog.cont.button("Open Releases", function() {
-                        Core.app.openURI("https://github.com/" + repo + "/releases");
-                        dialog.hide();
-                    }).width(150).color(Color.green);
-                    dialog.cont.button("Skip", function() {
-                        dialog.hide();
-                    }).width(150).color(Color.gray);
-                } else {
-                    dialog.cont.add("You have the latest version.").pad(10).row();
                 }
-            } else {
-                dialog.cont.add("Could not read version info.").pad(10).row();
-            }
-            dialog.show();
+                d.cont.button("Skip", function() { d.hide(); }).width(100).color(Color.gray);
+                d.show();
+            });
+        } catch (err) {
+            Log.err("Releases parse failed", err);
+            Vars.ui.showErrorMessage("Could not read releases info.");
+        }
+    }, function(e3) {
+        // Fallback when the GitHub API is unreachable (e.g. GFW): raw mod.json compare + browser.
+        Log.warn("Releases API failed, falling back to raw version check", e3);
+        httpGetFallback(getRawUrl(), getGiteeRawUrl(), function(response) {
+            var latestVersion = jsonField(response.getResultAsString(), "version");
+            Core.app.post(function() {
+                var dialog = new BaseDialog("Update Check");
+                dialog.addCloseButton();
+                dialog.cont.add("[gray]Releases API unreachable — basic mode.").pad(5).row();
+                dialog.cont.add("PvP-Notifs v" + currentVersion).pad(10).row();
+                if (latestVersion != null) {
+                    dialog.cont.add("Latest: v" + latestVersion).pad(10).row();
+                    if (isNewerVersion(latestVersion, currentVersion)) {
+                        dialog.cont.add("An update is available!").pad(10).row();
+                        dialog.cont.button("Open Releases", function() {
+                            Core.app.openURI("https://github.com/" + repo + "/releases");
+                            dialog.hide();
+                        }).width(150).color(Color.green);
+                    } else {
+                        dialog.cont.add("You have the latest version.").pad(10).row();
+                    }
+                } else {
+                    dialog.cont.add("Could not read version info.").pad(10).row();
+                }
+                dialog.show();
+            });
+        }, function(e) {
+            Log.warn("Update check failed", e);
+            Vars.ui.showErrorMessage("Update check failed: " + ((e && e.getMessage) ? e.getMessage() : e));
         });
-    }, function(e) {
-        Log.warn("Update check failed", e);
-        Vars.ui.showErrorMessage("Update check failed: " + ((e && e.getMessage) ? e.getMessage() : e));
     });
 }
