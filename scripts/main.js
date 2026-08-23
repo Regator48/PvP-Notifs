@@ -851,21 +851,22 @@ function getRingRegion(radiusUnits, boxMaxUnits) {
 }
 
 function findField(cls, name) {
+    var realCls = cls.class || cls;
     // Try direct getDeclaredField first
-    try { var f = cls.getDeclaredField(name); f.setAccessible(true); return f; } catch (e) {}
+    try { var f = realCls.getDeclaredField(name); f.setAccessible(true); return f; } catch (e) {}
     // Fallback: search all declared fields by name
     try {
-        var fields = cls.getDeclaredFields();
+        var fields = realCls.getDeclaredFields();
         var names = [];
         for (var i = 0; i < fields.length; i++) {
-            names.push(fields[i].getName());
-            if (fields[i].getName() == name) { fields[i].setAccessible(true); return fields[i]; }
+            names.push("" + fields[i].getName());
+            if ("" + fields[i].getName() == name) { fields[i].setAccessible(true); return fields[i]; }
         }
         pvplog("fields on " + cls + ": " + names.join(", "));
-    } catch (e) { pvplog("getDeclaredFields failed: " + e); }
-    // Last resort: try superclass via java.lang.Class
+    } catch (e) { pvplog("getDeclaredFields err: " + e); }
+    // Last resort: walk superclasses
     try {
-        var c = java.lang.Class.getSuperclass(cls);
+        var c = realCls.getSuperclass();
         while (c != null) {
             try {
                 var f = c.getDeclaredField(name); f.setAccessible(true); return f;
@@ -874,12 +875,12 @@ function findField(cls, name) {
                 var pfields = c.getDeclaredFields();
                 var pnames = [];
                 for (var j = 0; j < pfields.length; j++) {
-                    pnames.push(pfields[j].getName());
-                    if (pfields[j].getName() == name) { pfields[j].setAccessible(true); return pfields[j]; }
+                    pnames.push("" + pfields[j].getName());
+                    if ("" + pfields[j].getName() == name) { pfields[j].setAccessible(true); return pfields[j]; }
                 }
-                pvplog("superclass " + c + " fields: " + pnames.join(", "));
+                pvplog("super " + c.getSimpleName() + " fields: " + pnames.join(", "));
             } catch (e3) {}
-            try { c = java.lang.Class.getSuperclass(c); } catch (e4) { break; }
+            try { c = c.getSuperclass(); } catch (e4) { break; }
         }
     } catch (e) {}
     return null;
