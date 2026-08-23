@@ -863,21 +863,23 @@ function findField(cls, name) {
 
 function applyAmmoSprites() {
     try {
-        if (!Vars.content || !Vars.content.bullets || Vars.content.bullets().size == 0) { ammoStatus = "waiting: content not loaded"; return; }
-    } catch (e) { ammoStatus = "waiting: content error " + e; return; }
+        if (!Vars.content || !Vars.content.bullets || Vars.content.bullets().size == 0) { ammoStatus = "waiting: content not loaded"; print("[yellow]ammo: content not loaded yet"); return; }
+    } catch (e) { ammoStatus = "waiting: content error " + e; print("[red]ammo: content error " + e); return; }
     ensureAmmoTextures();
-    if (!ammoBuilt) return;
+    if (!ammoBuilt) { print("[red]ammo: bake failed"); return; }
     try {
         var BBT = Packages.mindustry.entities.bullet.BasicBulletType;
         var list = Vars.content.bullets();
         var swapped = 0, skipped = 0;
         var frontField = findField(BBT, "frontRegion");
         var backField = findField(BBT, "backRegion");
-        if (frontField == null) { ammoStatus = "FAILED: cannot find frontRegion field on " + BBT; return; }
+        print("[yellow]ammo: frontField=" + (frontField != null) + " backField=" + (backField != null) + " bullets=" + list.size);
+        if (frontField == null) { ammoStatus = "FAILED: cannot find frontRegion field on " + BBT; print("[red]ammo: " + ammoStatus); return; }
         for (var i = 0; i < list.size; i++) {
             var ty = list.get(i);
             try {
-                if (!(ty instanceof BBT)) { skipped++; continue; }
+                var isBBT = (ty instanceof BBT);
+                if (!isBBT) { skipped++; continue; }
                 var isAoE = (ty.splashDamage > 0) || (ty.splashDamageRadius > 0);
                 var reg = triRegion;
                 if (isAoE) {
@@ -900,13 +902,15 @@ function applyAmmoSprites() {
                     if (curBack != null) backField.set(ty, reg);
                 }
                 swapped++;
-            } catch (e2) {}
+            } catch (e2) { print("[red]ammo: swap err on " + ty + ": " + e2); }
         }
         ammoApplied = true;
         ammoOrigSaved = true;
         ammoStatus = "swapped " + swapped + " bullet types (" + skipped + " non-basic skipped)";
+        print("[green]ammo: " + ammoStatus);
     } catch (e) {
         ammoStatus = "SWAP FAILED: " + e;
+        print("[red]ammo: " + ammoStatus);
         Log.err("PvP-Alerts ammo sprite swap failed", e);
     }
 }
