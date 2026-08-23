@@ -844,7 +844,8 @@ function getRingRegion(radiusUnits, boxMaxUnits) {
         var ringR = Math.max(Math.round(frac * 26), 8);
         var pc = new Pixmap(64, 64);
         stampRing(pc, 32, 32, ringR, dotR, TAN);
-        var reg = new TextureRegion(new Texture(pc));
+        var tex = new Texture(pc);
+        var reg = new TextureRegion(tex);
         pc.dispose();
         ringCache[key] = reg;
         return reg;
@@ -913,6 +914,7 @@ function applyAmmoSprites() {
                     reg = getRingRegion(R, boxMax);
                     if (reg == null) reg = triRegion;
                 }
+                if (reg == null) { skipped++; continue; } // don't set null region
                 // Save originals only once
                 if (!ammoOrigSaved) {
                     var origFront = frontField.get(ty);
