@@ -844,7 +844,7 @@ function getRingRegion(radiusUnits, boxMaxUnits) {
 
 function applyAmmoSprites() {
     try {
-        if (!Vars.content || !Vars.content.bullets || Vars.content.bullets().size == 0) { ammoStatus = "waiting: content not loaded"; return; } // content not loaded yet
+        if (!Vars.content || !Vars.content.bullets || Vars.content.bullets().size == 0) { ammoStatus = "waiting: content not loaded"; return; }
     } catch (e) { ammoStatus = "waiting: content error " + e; return; }
     ensureAmmoTextures();
     if (!ammoBuilt) return;
@@ -853,6 +853,11 @@ function applyAmmoSprites() {
         var BBT = Packages.mindustry.entities.bullet.BasicBulletType;
         var list = Vars.content.bullets();
         var swapped = 0, skipped = 0;
+        // Use Java reflection to set fields — Rhino property assignment doesn't persist to Java fields
+        var frontField = null, backField = null;
+        try { frontField = BBT.class.getDeclaredField("frontRegion"); frontField.setAccessible(true); } catch (ef) {}
+        try { backField = BBT.class.getDeclaredField("backRegion"); backField.setAccessible(true); } catch (eb) {}
+        if (frontField == null) { ammoStatus = "FAILED: cannot find frontRegion field"; return; }
         for (var i = 0; i < list.size; i++) {
             var ty = list.get(i);
             try {
@@ -865,12 +870,12 @@ function applyAmmoSprites() {
                     reg = getRingRegion(R, boxMax);
                     if (reg == null) reg = triRegion;
                 }
-                var rec = [ty, null, null, null];
-                rec[1] = ty.frontRegion;
-                rec[2] = ty.backRegion;  // save original (may be null)
-                ty.frontRegion = reg;
-                if (rec[2] != null) ty.backRegion = reg;  // only swap if it had a back sprite
-                ammoSaved.push(rec);
+                var origFront = frontField.get(ty);
+                var origBack = null;
+                if (backField != null) origBack = backField.get(ty);
+                frontField.set(ty, reg);
+                if (backField != null && origBack != null) backField.set(ty, reg);
+                ammoSaved.push([ty, origFront, origBack]);
                 swapped++;
             } catch (e2) {}
         }
@@ -884,11 +889,17 @@ function applyAmmoSprites() {
 
 function restoreAmmoSprites() {
     if (!ammoApplied) return;
-    for (var i = 0; i < ammoSaved.length; i++) {
-        var r = ammoSaved[i];
-        try { r[0].frontRegion = r[1]; } catch (e) {}
-        try { if (r[2] != null) r[0].backRegion = r[2]; } catch (e2) {}
-    }
+    try {
+        var BBT = Packages.mindustry.entities.bullet.BasicBulletType;
+        var frontField = null, backField = null;
+        try { frontField = BBT.class.getDeclaredField("frontRegion"); frontField.setAccessible(true); } catch (ef) {}
+        try { backField = BBT.class.getDeclaredField("backRegion"); backField.setAccessible(true); } catch (eb) {}
+        for (var i = 0; i < ammoSaved.length; i++) {
+            var r = ammoSaved[i];
+            try { if (frontField) frontField.set(r[0], r[1]); } catch (e) {}
+            try { if (backField && r[2] != null) backField.set(r[0], r[2]); } catch (e2) {}
+        }
+    } catch (e) {}
     ammoSaved = [];
     ammoApplied = false;
 }
