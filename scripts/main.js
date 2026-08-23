@@ -1922,21 +1922,11 @@ function downloadAndReplace(zipUrlOverride) {
             Core.app.post(function() {
                 var d = new BaseDialog("Update Applied");
                 d.cont.add("[green]Update applied successfully!").pad(10).row();
-                d.cont.add("[gray]Restart to load the new version.").pad(5).row();
-                d.cont.button("Restart now", function() {
+                d.cont.add("[gray]Close and reopen Mindustry to load the new version.").pad(5).row();
+                d.cont.button("Exit Game", function() {
                     d.hide();
-                    try {
-                        var url = Core.class.getProtectionDomain().getCodeSource().getLocation();
-                        var jar = new java.io.File(new java.net.URI("" + url));
-                        var pb = new java.lang.ProcessBuilder("java", "-jar", jar.getAbsolutePath());
-                        pb.directory(new java.io.File(Core.files.localStoragePath().parent().path()));
-                        pb.start();
-                    } catch (e) {
-                        Log.warn("Auto-restart failed, exiting: " + e);
-                        pvplog("Auto-restart failed: " + e);
-                    }
                     Core.app.exit();
-                }).width(180).color(Color.green);
+                }).width(180).color(Color.orange);
                 d.cont.button("Later", function() {
                     d.hide();
                 }).width(120).color(Color.gray);
