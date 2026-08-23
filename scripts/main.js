@@ -757,40 +757,69 @@ function iterateOver(iterator, func) {
 }
 
 
-// --- ammo sprite replacement (v1.2.0) ---
-// Swaps your team's BasicBulletType sprites for baked triangle/circle textures.
-// Zero per-frame JS work: vanilla's own bullet draw blits the swapped texture.
+// --- ammo sprite replacement (v1.2.1) ---
+// Swaps BasicBulletType sprites for baked textures: hollow triangle (single-target),
+// ring sized to the type's real splashDamageRadius (AoE). Zero per-frame JS work.
 
 var ammoApplied = false;
-var ammoRegionsBuilt = false;
+var ammoBuilt = false;
 var triRegion = null;
-var circRegion = null;
+var blankRegion = null;
+var ringCache = {};
 var ammoSaved = [];
 
-function buildAmmoRegions() {
-    if (ammoRegionsBuilt) return;
+function ensureAmmoTextures() {
+    if (ammoBuilt) return;
     try {
         var S = 64;
+        var transparent = new Color(0, 0, 0, 0);
+        // hollow triangle: fill yellow, punch inner hole
         var pt = new Pixmap(S, S);
-        pt.fillTriangle(4, 60, 60, 60, 32, 4, Color.darkGray);
-        pt.fillTriangle(11, 55, 53, 55, 37, 12, Color.yellow);
-        var pc = new Pixmap(S, S);
-        pc.fillCircle(32, 32, 29, Color.darkGray);
-        pc.fillCircle(32, 32, 25, Color.orange);
+        pt.setColor(Color.yellow);
+        pt.fillTriangle(6, 56, 58, 56, 32, 8);
+        pt.setBlending(Pixmap.Blending.none);
+        pt.setColor(transparent);
+        pt.fillTriangle(15, 50, 49, 50, 32, 20);
         triRegion = new TextureRegion(new Texture(pt));
-        circRegion = new TextureRegion(new Texture(pc));
         pt.dispose();
+        // fully transparent region to hide backRegion outline layer
+        var pb = new Pixmap(8, 8);
+        pb.setBlending(Pixmap.Blending.none);
+        pb.setColor(transparent);
+        pb.fill();
+        blankRegion = new TextureRegion(new Texture(pb));
+        pb.dispose();
+        ammoBuilt = true;
+    } catch (e) { Log.err("PvP-Alerts ammo bake failed", e); }
+}
+
+// Ring whose diameter equals splashDamageRadius after being stretched into the
+// bullet's width x height box. Cached/quantized so only a handful of textures exist.
+function getRingRegion(radiusUnits, boxMaxUnits) {
+    try {
+        var frac = Math.min(Math.max(radiusUnits / Math.max(boxMaxUnits, 1), 0.12), 1.0);
+        var key = Math.round(frac * 24);
+        if (ringCache[key]) return ringCache[key];
+        var cx = 32, rpx = Math.round(frac * 30), stroke = 4;
+        var pc = new Pixmap(64, 64);
+        pc.setColor(Color.orange);
+        pc.fillCircle(cx, cx, rpx);
+        pc.setBlending(Pixmap.Blending.none);
+        pc.setColor(new Color(0, 0, 0, 0));
+        pc.fillCircle(cx, cx, Math.max(rpx - stroke, 1));
+        var reg = new TextureRegion(new Texture(pc));
         pc.dispose();
-        ammoRegionsBuilt = true;
-    } catch (e) { Log.err("PvP-Alerts ammo region bake failed", e); }
+        ringCache[key] = reg;
+        return reg;
+    } catch (e) { return null; }
 }
 
 function applyAmmoSprites() {
     try {
         if (!Vars.content || !Vars.content.bullets || Vars.content.bullets().size == 0) return; // content not loaded yet
     } catch (e) { return; }
-    buildAmmoRegions();
-    if (!ammoRegionsBuilt || ammoApplied) return;
+    ensureAmmoTextures();
+    if (!ammoBuilt || ammoApplied) return;
     try {
         var BBT = Packages.mindustry.entities.bullet.BasicBulletType;
         var list = Vars.content.bullets();
@@ -799,12 +828,18 @@ function applyAmmoSprites() {
             try {
                 if (!(ty instanceof BBT)) continue;
                 var isAoE = (ty.splashDamage > 0) || (ty.splashDamageRadius > 0);
-                var reg = isAoE ? circRegion : triRegion;
+                var reg = triRegion;
+                if (isAoE) {
+                    var R = ty.splashDamageRadius > 0 ? ty.splashDamageRadius : Math.max(ty.splashDamage, 4) * 0.6;
+                    var boxMax = Math.max(ty.width, ty.height, 1);
+                    reg = getRingRegion(R, boxMax);
+                    if (reg == null) reg = triRegion;
+                }
                 var rec = [ty, null, false, null];
                 rec[1] = ty.region;
                 ty.region = reg;
                 try {
-                    if (ty.backRegion != null) { rec[2] = true; rec[3] = ty.backRegion; ty.backRegion = reg; }
+                    if (ty.backRegion != null) { rec[2] = true; rec[3] = ty.backRegion; ty.backRegion = blankRegion; }
                 } catch (e4) {}
                 ammoSaved.push(rec);
             } catch (e2) {}
