@@ -933,13 +933,12 @@ function applyAmmoSprites() {
         var trailField = findField(sample, "trailLength");
         pvplog("ammo: front=" + (frontField != null) + " back=" + (backField != null) + " trail=" + (trailField != null));
         if (frontField == null) { ammoStatus = "FAILED: no frontRegion field"; pvplog("ammo: " + ammoStatus); return; }
+        // Use sample's field references — Field.set() works on any subclass instance
         for (var i = 0; i < list.size; i++) {
             var ty = list.get(i);
             try {
-                // Get field from THIS instance's class, not the sample
-                var tyFront = findField(ty, "frontRegion");
-                if (tyFront == null) { skipped++; continue; }
-                var tyBack = findField(ty, "backRegion");
+                // Try setting directly — if it fails, this type doesn't have the field
+                var testVal = frontField.get(ty);
                 var isAoE = (ty.splashDamage > 0) || (ty.splashDamageRadius > 0);
                 var reg = triRegion;
                 if (isAoE) {
@@ -949,19 +948,20 @@ function applyAmmoSprites() {
                     if (reg == null) reg = triRegion;
                 }
                 if (reg == null) { skipped++; continue; }
-                // Save originals in global map (persists across toggle cycles)
+                // Save originals in global map
                 var tkey = "" + ty;
                 if (!ammoOrigins[tkey]) {
-                    var origFront = tyFront.get(ty);
                     var origBack = null;
-                    if (tyBack != null) origBack = tyBack.get(ty);
-                    ammoOrigins[tkey] = { front: origFront, back: origBack, ty: ty };
+                    try { origBack = backField ? backField.get(ty) : null; } catch (e) {}
+                    ammoOrigins[tkey] = { front: testVal, back: origBack, ty: ty };
                 }
                 // Set custom region
-                tyFront.set(ty, reg);
-                if (tyBack != null) {
-                    var curBack = tyBack.get(ty);
-                    if (curBack != null) tyBack.set(ty, reg);
+                frontField.set(ty, reg);
+                if (backField != null) {
+                    try {
+                        var curBack = backField.get(ty);
+                        if (curBack != null) backField.set(ty, reg);
+                    } catch (e) {}
                 }
                 swapped++;
             } catch (e2) {}
@@ -998,21 +998,21 @@ function applyAmmoSprites() {
                 } catch (e3) {}
             });
         } catch (e4) { pvplog("turret smoke clear err: " + e4); }
-        // Remove missile unit trails (Scathe smoke source)
+        // Remove all unit trails and engine effects (Scathe smoke source)
         try {
-            var trailField = null, engineField = null, trailColorField = null;
-            try { trailField = java.lang.Class.forName("mindustry.type.UnitType").getDeclaredField("trailLength"); trailField.setAccessible(true); } catch (e) {}
-            try { engineField = java.lang.Class.forName("mindustry.type.UnitType").getDeclaredField("engineSize"); engineField.setAccessible(true); } catch (e) {}
-            try { trailColorField = java.lang.Class.forName("mindustry.type.UnitType").getDeclaredField("trailColor"); trailColorField.setAccessible(true); } catch (e) {}
             Vars.content.units().each(function(ut) {
                 try {
-                    var cn = "" + ut.getClass().getName();
-                    if (cn.indexOf("MissileUnitType") >= 0 || cn.indexOf("Missile") >= 0) {
-                        var utname = "" + ut.name;
+                    var trailField = findField(ut, "trailLength");
+                    var engineField = findField(ut, "engineSize");
+                    var trailColorField = findField(ut, "trailColor");
+                    var utname = "" + ut.name;
+                    var tl = trailField ? trailField.get(ut) : 0;
+                    var es = engineField ? engineField.get(ut) : 0;
+                    if (tl > 0 || es > 0) {
                         if (!turretSmokeCache["unit_" + utname]) {
                             turretSmokeCache["unit_" + utname] = {
-                                trail: trailField ? trailField.get(ut) : null,
-                                engine: engineField ? engineField.get(ut) : null,
+                                trail: tl,
+                                engine: es,
                                 trailColor: trailColorField ? trailColorField.get(ut) : null
                             };
                         }
@@ -1022,7 +1022,7 @@ function applyAmmoSprites() {
                     }
                 } catch (e5) {}
             });
-        } catch (e6) { pvplog("missile trail clear err: " + e6); }
+        } catch (e6) { pvplog("unit trail clear err: " + e6); }
     } catch (e) {
         ammoStatus = "SWAP FAILED: " + e;
         pvplog("ammo: " + ammoStatus);
@@ -1063,19 +1063,27 @@ function syncAmmoSprites() {
         var restored = 0;
         try {
             var list = Vars.content.bullets();
-            for (var i = 0; i < list.size; i++) {
-                var ty = list.get(i);
-                try {
-                    var tkey = "" + ty;
-                    var o = ammoOrigins[tkey];
-                    if (o) {
-                        var ff = findField(ty, "frontRegion");
-                        var bf = findField(ty, "backRegion");
-                        if (ff) ff.set(ty, o.front);
-                        if (bf && o.back != null) bf.set(ty, o.back);
-                        restored++;
+            // Get field from first saved instance
+            var sampleEntry = null;
+            var keys = Object.keys(ammoOrigins);
+            if (keys.length > 0) sampleEntry = ammoOrigins[keys[0]];
+            if (sampleEntry) {
+                var ff = findField(sampleEntry.ty, "frontRegion");
+                var bf = findField(sampleEntry.ty, "backRegion");
+                if (ff) {
+                    for (var i = 0; i < list.size; i++) {
+                        var ty = list.get(i);
+                        try {
+                            var tkey = "" + ty;
+                            var o = ammoOrigins[tkey];
+                            if (o) {
+                                ff.set(ty, o.front);
+                                if (bf && o.back != null) bf.set(ty, o.back);
+                                restored++;
+                            }
+                        } catch (e) {}
                     }
-                } catch (e) {}
+                }
             }
         } catch (e) { pvplog("restore err: " + e); }
         // Restore turret smoke effects
@@ -1098,22 +1106,19 @@ function syncAmmoSprites() {
                 } catch (e3) {}
             });
         } catch (e4) {}
-        // Restore missile unit trails
+        // Restore unit trails
         try {
-            var trailField = java.lang.Class.forName("mindustry.type.UnitType").getDeclaredField("trailLength");
-            trailField.setAccessible(true);
-            var engineField = java.lang.Class.forName("mindustry.type.UnitType").getDeclaredField("engineSize");
-            engineField.setAccessible(true);
-            var trailColorField = java.lang.Class.forName("mindustry.type.UnitType").getDeclaredField("trailColor");
-            trailColorField.setAccessible(true);
             Vars.content.units().each(function(ut) {
                 try {
                     var utname = "" + ut.name;
                     var cached = turretSmokeCache["unit_" + utname];
                     if (cached) {
-                        if (cached.trail != null) trailField.set(ut, cached.trail);
-                        if (cached.engine != null) engineField.set(ut, cached.engine);
-                        if (cached.trailColor != null) trailColorField.set(ut, cached.trailColor);
+                        var tf = findField(ut, "trailLength");
+                        var ef = findField(ut, "engineSize");
+                        var cf = findField(ut, "trailColor");
+                        if (tf && cached.trail != null) tf.set(ut, cached.trail);
+                        if (ef && cached.engine != null) ef.set(ut, cached.engine);
+                        if (cf && cached.trailColor != null) cf.set(ut, cached.trailColor);
                     }
                 } catch (e5) {}
             });
