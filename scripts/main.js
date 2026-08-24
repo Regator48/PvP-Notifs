@@ -1430,6 +1430,21 @@ const onChat = function(sender, message) {
                     var cnt = Vars.content.bullets().size;
                     print("content bullets: [white]" + cnt);
                 } catch (e9) { print("content bullets: [red]error " + e9); }
+                // Dump fields from first BasicBulletType
+                try {
+                    var BBT = Packages.mindustry.entities.bullet.BasicBulletType;
+                    var list = Vars.content.bullets();
+                    for (var ai = 0; ai < list.size; ai++) {
+                        if (list.get(ai) instanceof BBT) {
+                            var cls = list.get(ai).getClass();
+                            var flds = cls.getDeclaredFields();
+                            var fnames = [];
+                            for (var fi = 0; fi < flds.length; fi++) fnames.push("" + flds[fi].getName());
+                            print("BBT fields: [white]" + fnames.join(", "));
+                            break;
+                        }
+                    }
+                } catch (e8) { print("field dump error: " + e8); }
                 break;
             case "debug":
                 pvpDebug = !pvpDebug;
