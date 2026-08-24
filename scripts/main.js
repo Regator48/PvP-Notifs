@@ -48,7 +48,11 @@ function chatTeamColor(team) {
 }
 
 function toBlockEmoji(block) {
-    return String.fromCharCode(Fonts.getUnicode(block.name));
+    try {
+        var u = Fonts.getUnicode(block.name);
+        if (u == 0 || u == "?".charCodeAt(0)) return "";
+        return String.fromCharCode(u);
+    } catch (e) { return ""; }
 }
 
 function getConstructingBlock(tile) {
@@ -1001,19 +1005,24 @@ function applyAmmoSprites() {
         // Remove all unit trails and engine effects (Scathe smoke source)
         try {
             var missileCount = 0;
+            // Use Class.forName to get real Java classes (Rhino proxy blocks getClass())
+            var unitTypeCls = java.lang.Class.forName("mindustry.type.UnitType");
+            var trailField = null, engineField = null, trailColorField = null, enginesField = null;
+            try { trailField = unitTypeCls.getDeclaredField("trailLength"); trailField.setAccessible(true); } catch (e) {}
+            try { engineField = unitTypeCls.getDeclaredField("engineSize"); engineField.setAccessible(true); } catch (e) {}
+            try { trailColorField = unitTypeCls.getDeclaredField("trailColor"); trailColorField.setAccessible(true); } catch (e) {}
+            try { enginesField = unitTypeCls.getDeclaredField("engines"); enginesField.setAccessible(true); } catch (e) {}
+            if (trailField) pvplog("trailLength field found");
+            else pvplog("trailLength field NOT found");
             Vars.content.units().each(function(ut) {
                 try {
-                    var trailField = findField(ut, "trailLength");
-                    var engineField = findField(ut, "engineSize");
-                    var trailColorField = findField(ut, "trailColor");
-                    var enginesField = findField(ut, "engines");
-                    var utname = "" + ut.name;
-                    var tl = trailField ? trailField.get(ut) : -1;
-                    var es = engineField ? engineField.get(ut) : -1;
+                    var tl = trailField ? trailField.getInt(ut) : 0;
+                    var es = engineField ? engineField.getFloat(ut) : 0;
                     var eng = enginesField ? enginesField.get(ut) : null;
                     var engSize = eng ? eng.size : 0;
                     if (tl > 0 || es > 0 || engSize > 0) {
                         missileCount++;
+                        var utname = "" + ut.name;
                         if (!turretSmokeCache["unit_" + utname]) {
                             turretSmokeCache["unit_" + utname] = {
                                 trail: tl,
@@ -1022,10 +1031,10 @@ function applyAmmoSprites() {
                                 enginesSize: engSize
                             };
                         }
-                        if (trailField) { trailField.set(ut, 0); pvplog("set " + utname + " trailLength=0"); }
-                        if (engineField) engineField.set(ut, 0);
+                        if (trailField) { trailField.setInt(ut, 0); pvplog("set " + utname + " trailLength=0 (was " + tl + ")"); }
+                        if (engineField) engineField.setFloat(ut, 0);
                         if (trailColorField) trailColorField.set(ut, null);
-                        if (eng) eng.clear();
+                        if (eng) { eng.clear(); pvplog("cleared " + utname + " engines (was " + engSize + ")"); }
                     }
                 } catch (e5) { pvplog("unit err: " + e5); }
             });
