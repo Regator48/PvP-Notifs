@@ -1005,20 +1005,25 @@ function applyAmmoSprites() {
                     var trailField = findField(ut, "trailLength");
                     var engineField = findField(ut, "engineSize");
                     var trailColorField = findField(ut, "trailColor");
+                    var enginesField = findField(ut, "engines");
                     var utname = "" + ut.name;
                     var tl = trailField ? trailField.get(ut) : 0;
                     var es = engineField ? engineField.get(ut) : 0;
-                    if (tl > 0 || es > 0) {
+                    var eng = enginesField ? enginesField.get(ut) : null;
+                    var engSize = eng ? eng.size : 0;
+                    if (tl > 0 || es > 0 || engSize > 0) {
                         if (!turretSmokeCache["unit_" + utname]) {
                             turretSmokeCache["unit_" + utname] = {
                                 trail: tl,
                                 engine: es,
-                                trailColor: trailColorField ? trailColorField.get(ut) : null
+                                trailColor: trailColorField ? trailColorField.get(ut) : null,
+                                enginesSize: engSize
                             };
                         }
                         if (trailField) trailField.set(ut, 0);
                         if (engineField) engineField.set(ut, 0);
                         if (trailColorField) trailColorField.set(ut, null);
+                        if (eng) eng.clear();
                     }
                 } catch (e5) {}
             });
@@ -1106,7 +1111,7 @@ function syncAmmoSprites() {
                 } catch (e3) {}
             });
         } catch (e4) {}
-        // Restore unit trails
+        // Restore unit trails (engines list cleared permanently, restored on map change)
         try {
             Vars.content.units().each(function(ut) {
                 try {
