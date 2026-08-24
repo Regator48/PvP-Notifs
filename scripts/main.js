@@ -991,6 +991,31 @@ function applyAmmoSprites() {
                 } catch (e3) {}
             });
         } catch (e4) { pvplog("turret smoke clear err: " + e4); }
+        // Remove missile unit trails (Scathe smoke source)
+        try {
+            var trailField = null, engineField = null, trailColorField = null;
+            try { trailField = java.lang.Class.forName("mindustry.type.UnitType").getDeclaredField("trailLength"); trailField.setAccessible(true); } catch (e) {}
+            try { engineField = java.lang.Class.forName("mindustry.type.UnitType").getDeclaredField("engineSize"); engineField.setAccessible(true); } catch (e) {}
+            try { trailColorField = java.lang.Class.forName("mindustry.type.UnitType").getDeclaredField("trailColor"); trailColorField.setAccessible(true); } catch (e) {}
+            Vars.content.units().each(function(ut) {
+                try {
+                    var cn = "" + ut.getClass().getName();
+                    if (cn.indexOf("MissileUnitType") >= 0 || cn.indexOf("Missile") >= 0) {
+                        var utname = "" + ut.name;
+                        if (!turretSmokeCache["unit_" + utname]) {
+                            turretSmokeCache["unit_" + utname] = {
+                                trail: trailField ? trailField.get(ut) : null,
+                                engine: engineField ? engineField.get(ut) : null,
+                                trailColor: trailColorField ? trailColorField.get(ut) : null
+                            };
+                        }
+                        if (trailField) trailField.set(ut, 0);
+                        if (engineField) engineField.set(ut, 0);
+                        if (trailColorField) trailColorField.set(ut, null);
+                    }
+                } catch (e5) {}
+            });
+        } catch (e6) { pvplog("missile trail clear err: " + e6); }
     } catch (e) {
         ammoStatus = "SWAP FAILED: " + e;
         pvplog("ammo: " + ammoStatus);
@@ -1070,6 +1095,26 @@ function syncAmmoSprites() {
                 } catch (e3) {}
             });
         } catch (e4) {}
+        // Restore missile unit trails
+        try {
+            var trailField = java.lang.Class.forName("mindustry.type.UnitType").getDeclaredField("trailLength");
+            trailField.setAccessible(true);
+            var engineField = java.lang.Class.forName("mindustry.type.UnitType").getDeclaredField("engineSize");
+            engineField.setAccessible(true);
+            var trailColorField = java.lang.Class.forName("mindustry.type.UnitType").getDeclaredField("trailColor");
+            trailColorField.setAccessible(true);
+            Vars.content.units().each(function(ut) {
+                try {
+                    var utname = "" + ut.name;
+                    var cached = turretSmokeCache["unit_" + utname];
+                    if (cached) {
+                        if (cached.trail != null) trailField.set(ut, cached.trail);
+                        if (cached.engine != null) engineField.set(ut, cached.engine);
+                        if (cached.trailColor != null) trailColorField.set(ut, cached.trailColor);
+                    }
+                } catch (e5) {}
+            });
+        } catch (e6) {}
         ammoApplied = false;
     }
 }
