@@ -971,19 +971,28 @@ function applyAmmoSprites() {
         // Remove turret smoke effects
         try {
             var turretCls = java.lang.Class.forName("mindustry.world.blocks.defense.turrets.Turret");
-            var smokeField = turretCls.getDeclaredField("smokeEffect");
-            smokeField.setAccessible(true);
-            var shootField = turretCls.getDeclaredField("shootEffect");
-            shootField.setAccessible(true);
+            var smokeField = null, shootField = null;
+            try { smokeField = turretCls.getDeclaredField("smokeEffect"); smokeField.setAccessible(true); } catch (e) { pvplog("no smokeEffect field"); }
+            try { shootField = turretCls.getDeclaredField("shootEffect"); shootField.setAccessible(true); } catch (e2) { pvplog("no shootEffect field"); }
+            // Dump turret fields for debugging
+            try {
+                var tflds = turretCls.getDeclaredFields();
+                var tnames = [];
+                for (var ti = 0; ti < tflds.length; ti++) tnames.push("" + tflds[ti].getName());
+                pvplog("Turret fields: " + tnames.join(", "));
+            } catch (e3) {}
             Vars.content.blocks().each(function(b) {
                 try {
                     if (turretCls.isInstance(b)) {
                         var bname = "" + b.name;
                         if (!turretSmokeCache[bname]) {
-                            turretSmokeCache[bname] = { smoke: smokeField.get(b), shoot: shootField.get(b) };
+                            turretSmokeCache[bname] = {
+                                smoke: smokeField ? smokeField.get(b) : null,
+                                shoot: shootField ? shootField.get(b) : null
+                            };
                         }
-                        smokeField.set(b, null);
-                        shootField.set(b, null);
+                        if (smokeField) smokeField.set(b, null);
+                        if (shootField) shootField.set(b, null);
                     }
                 } catch (e3) {}
             });
