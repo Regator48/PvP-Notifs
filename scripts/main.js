@@ -925,7 +925,15 @@ function applyAmmoSprites() {
         for (var i = 0; i < list.size; i++) {
             var ty = list.get(i);
             try {
-                var isBBT = (ty instanceof BBT);
+                var isBBT = false;
+                try { isBBT = (ty instanceof BBT); } catch (e1) {}
+                if (!isBBT) {
+                    // Fallback: check class name string
+                    try {
+                        var cn = "" + ty.getClass().getName();
+                        isBBT = cn.indexOf("BasicBulletType") >= 0;
+                    } catch (e2) {}
+                }
                 if (!isBBT) { skipped++; continue; }
                 var isAoE = (ty.splashDamage > 0) || (ty.splashDamageRadius > 0);
                 var reg = triRegion;
