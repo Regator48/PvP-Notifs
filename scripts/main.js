@@ -1000,6 +1000,7 @@ function applyAmmoSprites() {
         } catch (e4) { pvplog("turret smoke clear err: " + e4); }
         // Remove all unit trails and engine effects (Scathe smoke source)
         try {
+            var missileCount = 0;
             Vars.content.units().each(function(ut) {
                 try {
                     var trailField = findField(ut, "trailLength");
@@ -1007,11 +1008,12 @@ function applyAmmoSprites() {
                     var trailColorField = findField(ut, "trailColor");
                     var enginesField = findField(ut, "engines");
                     var utname = "" + ut.name;
-                    var tl = trailField ? trailField.get(ut) : 0;
-                    var es = engineField ? engineField.get(ut) : 0;
+                    var tl = trailField ? trailField.get(ut) : -1;
+                    var es = engineField ? engineField.get(ut) : -1;
                     var eng = enginesField ? enginesField.get(ut) : null;
                     var engSize = eng ? eng.size : 0;
                     if (tl > 0 || es > 0 || engSize > 0) {
+                        missileCount++;
                         if (!turretSmokeCache["unit_" + utname]) {
                             turretSmokeCache["unit_" + utname] = {
                                 trail: tl,
@@ -1020,13 +1022,14 @@ function applyAmmoSprites() {
                                 enginesSize: engSize
                             };
                         }
-                        if (trailField) trailField.set(ut, 0);
+                        if (trailField) { trailField.set(ut, 0); pvplog("set " + utname + " trailLength=0"); }
                         if (engineField) engineField.set(ut, 0);
                         if (trailColorField) trailColorField.set(ut, null);
                         if (eng) eng.clear();
                     }
-                } catch (e5) {}
+                } catch (e5) { pvplog("unit err: " + e5); }
             });
+            pvplog("ammo: cleared trails on " + missileCount + " unit types");
         } catch (e6) { pvplog("unit trail clear err: " + e6); }
     } catch (e) {
         ammoStatus = "SWAP FAILED: " + e;
@@ -1231,6 +1234,14 @@ Events.run(Trigger.update, () => {
 
     iterateOver(Vars.indexer.getFlagged(Vars.player.team(), BlockFlag.generator).iterator(), tilecons);
     iterateOver(Vars.indexer.getFlagged(Vars.player.team(), BlockFlag.reactor).iterator(), tilecons);
+    // Null trails on all units every frame (smoke removal)
+    if (showTurretDmg && ammoApplied) {
+        try {
+            Groups.unit.each(function(u) {
+                try { if (u.trail != null) u.trail = null; } catch (e) {}
+            });
+        } catch (e) {}
+    }
     } catch (e) { Log.err("PvP-Alerts update loop failed", e); }
 });
 
