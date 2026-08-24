@@ -209,11 +209,11 @@ const TeamAchievement = {
     processUnitCreateEvent(unit) {
         if (!this.units) {
             this.units = Seq.with(unit);
-            eventLogInfo(this.team, "has started making " + unit.localizedName + toBlockEmoji(unit));
+            eventLogInfo(this.team, "unit prod " + unit.localizedName + toBlockEmoji(unit));
         }
         if (!this.units.contains(unit)) {
             this.units.add(unit);
-            eventLogInfo(this.team, "has started making " + unit.localizedName + toBlockEmoji(unit));
+            eventLogInfo(this.team, "unit prod " + unit.localizedName + toBlockEmoji(unit));
         }
     }
 };
@@ -426,84 +426,84 @@ Events.on(EventType.ClientLoadEvent,
 
         addTrackHandler(BlockTrackHandler.new("graphite", BlockBuildTracker, Blocks.graphitePress, false, {
             "customText": function(team, block, tile) {
-                return "has started graphite production " + toBlockEmoji(block) + "" + toBlockEmoji(Items.graphite);
+                return "graphite prod " + toBlockEmoji(block) + "" + toBlockEmoji(Items.graphite);
             }
         }));
         addTrackHandler(BlockTrackHandler.new("silicon", BlockBuildTracker, Blocks.siliconSmelter, false, {
             "customText": function(team, block, tile) {
-                return "has started silicon production " + toBlockEmoji(block) + "" + toBlockEmoji(Items.silicon);
+                return "silicon prod " + toBlockEmoji(block) + "" + toBlockEmoji(Items.silicon);
             }
         }));
         addTrackHandler(BlockTrackHandler.new("siliconCrucible", BlockBuildTracker, Blocks.siliconCrucible, false, {
             "customText": function(team, block, tile) {
-                return "has started mass silicon production " + toBlockEmoji(block) + "" + toBlockEmoji(Items.silicon);
+                return "mass silicon prod " + toBlockEmoji(block) + "" + toBlockEmoji(Items.silicon);
             }
         }));
         addTrackHandler(BlockTrackHandler.new("kiln", BlockBuildTracker, Blocks.kiln, false, {
             "customText": function(team, block, tile) {
-                return "has started metaglass production " + toBlockEmoji(block) + "" + toBlockEmoji(Items.metaglass);
+                return "metaglass prod " + toBlockEmoji(block) + "" + toBlockEmoji(Items.metaglass);
             }
         }));
         addTrackHandler(BlockTrackHandler.new("plast", BlockBuildTracker, Blocks.plastaniumCompressor, false, {
             "customText": function(team, block, tile) {
-                return "has started plastanium production " + toBlockEmoji(block) + "" + toBlockEmoji(Items.plastanium);
+                return "plastanium prod " + toBlockEmoji(block) + "" + toBlockEmoji(Items.plastanium);
             }
         }));
         addTrackHandler(BlockTrackHandler.new("phase", BlockBuildTracker, Blocks.phaseWeaver, false, {
             "customText": function(team, block, tile) {
-                return "has started phase production " + toBlockEmoji(block) + "" + toBlockEmoji(Items.phaseFabric);
+                return "phase prod " + toBlockEmoji(block) + "" + toBlockEmoji(Items.phaseFabric);
             }
         }));
         addTrackHandler(BlockTrackHandler.new("surge", BlockBuildTracker, Blocks.surgeSmelter, false, {
             "customText": function(team, block, tile) {
-                return "has started surge production " + toBlockEmoji(block) + "" + toBlockEmoji(Items.surgeAlloy);
+                return "surge prod " + toBlockEmoji(block) + "" + toBlockEmoji(Items.surgeAlloy);
             }
         }));
         addTrackHandler(BlockTrackHandler.new("pyratite", BlockBuildTracker, Blocks.pyratiteMixer, false, {
             "customText": function(team, block, tile) {
-                return "has started pyratite production " + toBlockEmoji(block) + "" + toBlockEmoji(Items.pyratite);
+                return "pyratite prod " + toBlockEmoji(block) + "" + toBlockEmoji(Items.pyratite);
             }
         }));
         addTrackHandler(BlockTrackHandler.new("blast", BlockBuildTracker, Blocks.blastMixer, false, {
             "customText": function(team, block, tile) {
-                return "has started blast production " + toBlockEmoji(block) + "" + toBlockEmoji(Items.blastCompound);
+                return "blast prod " + toBlockEmoji(block) + "" + toBlockEmoji(Items.blastCompound);
             }
         }));
         addTrackHandler(BlockTrackHandler.new("foreshadow", BlockBuildTracker, Blocks.foreshadow, false, {}));
 
         addTrackHandler(BlockTrackHandler.new("siliconArcFurnace", BlockBuildTracker, Blocks.siliconArcFurnace, false, {
             "customText": function(team, block, tile) {
-                return "has started silicon production " + toBlockEmoji(block) + "" + toBlockEmoji(Items.silicon);
+                return "silicon prod " + toBlockEmoji(block) + "" + toBlockEmoji(Items.silicon);
             }
         }));
         addTrackHandler(BlockTrackHandler.new("carbideCrucible", BlockBuildTracker, Blocks.carbideCrucible, false, {
             "customText": function(team, block, tile) {
-                return "has started carbide production " + toBlockEmoji(block) + "" + toBlockEmoji(Items.carbide);
+                return "carbide prod " + toBlockEmoji(block) + "" + toBlockEmoji(Items.carbide);
             }
         }));
         addTrackHandler(BlockTrackHandler.new("surgeCrucible", BlockBuildTracker, Blocks.surgeCrucible, false, {
             "customText": function(team, block, tile) {
-                return "has started surge production " + toBlockEmoji(block) + "" + toBlockEmoji(Items.surgeAlloy);
+                return "surge prod " + toBlockEmoji(block) + "" + toBlockEmoji(Items.surgeAlloy);
             }
         }));
         addTrackHandler(BlockTrackHandler.new("phaseSynthesizer", BlockBuildTracker, Blocks.phaseSynthesizer, false, {
             "customText": function(team, block, tile) {
-                return "has started phase production " + toBlockEmoji(block) + "" + toBlockEmoji(Items.phaseFabric);
+                return "phase prod " + toBlockEmoji(block) + "" + toBlockEmoji(Items.phaseFabric);
             }
         }));
         addTrackHandler(BlockTrackHandler.new("cyanogenSynthesizer", BlockBuildTracker, Blocks.cyanogenSynthesizer, false, {
             "customText": function(team, block, tile) {
-                return "has started cyanogen production " + toBlockEmoji(block);
+                return "cyanogen prod " + toBlockEmoji(block);
             }
         }));
         addTrackHandler(BlockTrackHandler.new("electrolyzer", BlockBuildTracker, Blocks.electrolyzer, false, {
             "customText": function(team, block, tile) {
-                return "has started electrolysis " + toBlockEmoji(block);
+                return "electrolysis " + toBlockEmoji(block);
             }
         }));
         addTrackHandler(BlockTrackHandler.new("slagCentrifuge", BlockBuildTracker, Blocks.slagCentrifuge, false, {
             "customText": function(team, block, tile) {
-                return "has started slag centrifuge " + toBlockEmoji(block);
+                return "slag centrifuge " + toBlockEmoji(block);
             }
         }));
 
@@ -512,7 +512,7 @@ Events.on(EventType.ClientLoadEvent,
                 var build = tile.build;
                 var item = build ? build.dominantItem : null;
                 var resName = item ? item.localizedName : "ore";
-                return "has started " + resName + " mining " + toBlockEmoji(block) + (item ? "" + toBlockEmoji(item) : "");
+                return resName + " mining " + toBlockEmoji(block) + (item ? "" + toBlockEmoji(item) : "");
             }
         };
         addTrackHandler(BlockTrackHandler.new("plasmaBore", BlockBuildTracker, Blocks.plasmaBore, false, erekirDrillEvent));
@@ -534,7 +534,7 @@ Events.on(EventType.ClientLoadEvent,
                 var build = tile.build;
                 var item = build ? build.dominantItem : null;
                 var resName = item ? item.localizedName : "ore";
-                return "has started " + resName + " mining " + toBlockEmoji(block) + (item ? "" + toBlockEmoji(item) : "");
+                return resName + " mining " + toBlockEmoji(block) + (item ? "" + toBlockEmoji(item) : "");
             }
         };
         addTrackHandler(BlockTrackHandler.new("pneumaticDrill", BlockBuildTracker, Blocks.pneumaticDrill, false, drillEvent));
@@ -936,9 +936,10 @@ function applyAmmoSprites() {
         for (var i = 0; i < list.size; i++) {
             var ty = list.get(i);
             try {
-                var hasFront = false;
-                try { frontField.get(ty); hasFront = true; } catch (e1) {}
-                if (!hasFront) { skipped++; continue; }
+                // Get field from THIS instance's class, not the sample
+                var tyFront = findField(ty, "frontRegion");
+                if (tyFront == null) { skipped++; continue; }
+                var tyBack = findField(ty, "backRegion");
                 var isAoE = (ty.splashDamage > 0) || (ty.splashDamageRadius > 0);
                 var reg = triRegion;
                 if (isAoE) {
@@ -951,21 +952,17 @@ function applyAmmoSprites() {
                 // Save originals in global map (persists across toggle cycles)
                 var tkey = "" + ty;
                 if (!ammoOrigins[tkey]) {
-                    var origFront = frontField.get(ty);
+                    var origFront = tyFront.get(ty);
                     var origBack = null;
-                    if (backField != null) origBack = backField.get(ty);
-                    var origTrail = null;
-                    if (trailField != null) origTrail = trailField.get(ty);
-                    ammoOrigins[tkey] = { front: origFront, back: origBack, trail: origTrail, ty: ty };
+                    if (tyBack != null) origBack = tyBack.get(ty);
+                    ammoOrigins[tkey] = { front: origFront, back: origBack, ty: ty };
                 }
                 // Set custom region
-                frontField.set(ty, reg);
-                if (backField != null) {
-                    var curBack = backField.get(ty);
-                    if (curBack != null) backField.set(ty, reg);
+                tyFront.set(ty, reg);
+                if (tyBack != null) {
+                    var curBack = tyBack.get(ty);
+                    if (curBack != null) tyBack.set(ty, reg);
                 }
-                // Remove trail/smoke
-                if (trailField != null) trailField.set(ty, 0);
                 swapped++;
             } catch (e2) {}
         }
@@ -1063,30 +1060,23 @@ function syncAmmoSprites() {
     } else {
         pvplog("restore: starting, origins=" + Object.keys(ammoOrigins).length);
         // Restore originals: iterate current bullet types, find ones we modified
+        var restored = 0;
         try {
-            var cls = java.lang.Class.forName("mindustry.entities.bullet.BasicBulletType");
-            var ff = cls.getDeclaredField("frontRegion");
-            ff.setAccessible(true);
-            var bf = cls.getDeclaredField("backRegion");
-            bf.setAccessible(true);
-            var tf = cls.getDeclaredField("trailLength");
-            tf.setAccessible(true);
             var list = Vars.content.bullets();
-            var restored = 0;
             for (var i = 0; i < list.size; i++) {
                 var ty = list.get(i);
                 try {
                     var tkey = "" + ty;
                     var o = ammoOrigins[tkey];
                     if (o) {
-                        ff.set(ty, o.front);
-                        if (o.back != null) bf.set(ty, o.back);
-                        if (o.trail != null) tf.set(ty, o.trail);
+                        var ff = findField(ty, "frontRegion");
+                        var bf = findField(ty, "backRegion");
+                        if (ff) ff.set(ty, o.front);
+                        if (bf && o.back != null) bf.set(ty, o.back);
                         restored++;
                     }
                 } catch (e) {}
             }
-            pvplog("restore: done, restored=" + restored);
         } catch (e) { pvplog("restore err: " + e); }
         // Restore turret smoke effects
         try {
@@ -1295,84 +1285,84 @@ function clear() {
 
     addTrackHandler(BlockTrackHandler.new("graphite", BlockBuildTracker, Blocks.graphitePress, false, {
         "customText": function(team, block, tile) {
-            return "has started graphite production " + toBlockEmoji(block) + "" + toBlockEmoji(Items.graphite);
+            return "graphite prod " + toBlockEmoji(block) + "" + toBlockEmoji(Items.graphite);
         }
     }));
     addTrackHandler(BlockTrackHandler.new("silicon", BlockBuildTracker, Blocks.siliconSmelter, false, {
         "customText": function(team, block, tile) {
-            return "has started silicon production " + toBlockEmoji(block) + "" + toBlockEmoji(Items.silicon);
+            return "silicon prod " + toBlockEmoji(block) + "" + toBlockEmoji(Items.silicon);
         }
     }));
     addTrackHandler(BlockTrackHandler.new("siliconCrucible", BlockBuildTracker, Blocks.siliconCrucible, false, {
         "customText": function(team, block, tile) {
-            return "has started mass silicon production " + toBlockEmoji(block) + "" + toBlockEmoji(Items.silicon);
+            return "mass silicon prod " + toBlockEmoji(block) + "" + toBlockEmoji(Items.silicon);
         }
     }));
     addTrackHandler(BlockTrackHandler.new("kiln", BlockBuildTracker, Blocks.kiln, false, {
         "customText": function(team, block, tile) {
-            return "has started metaglass production " + toBlockEmoji(block) + "" + toBlockEmoji(Items.metaglass);
+            return "metaglass prod " + toBlockEmoji(block) + "" + toBlockEmoji(Items.metaglass);
         }
     }));
     addTrackHandler(BlockTrackHandler.new("plast", BlockBuildTracker, Blocks.plastaniumCompressor, false, {
         "customText": function(team, block, tile) {
-            return "has started plastanium production " + toBlockEmoji(block) + "" + toBlockEmoji(Items.plastanium);
+            return "plastanium prod " + toBlockEmoji(block) + "" + toBlockEmoji(Items.plastanium);
         }
     }));
     addTrackHandler(BlockTrackHandler.new("phase", BlockBuildTracker, Blocks.phaseWeaver, false, {
         "customText": function(team, block, tile) {
-            return "has started phase production " + toBlockEmoji(block) + "" + toBlockEmoji(Items.phaseFabric);
+            return "phase prod " + toBlockEmoji(block) + "" + toBlockEmoji(Items.phaseFabric);
         }
     }));
     addTrackHandler(BlockTrackHandler.new("surge", BlockBuildTracker, Blocks.surgeSmelter, false, {
         "customText": function(team, block, tile) {
-            return "has started surge production " + toBlockEmoji(block) + "" + toBlockEmoji(Items.surgeAlloy);
+            return "surge prod " + toBlockEmoji(block) + "" + toBlockEmoji(Items.surgeAlloy);
         }
     }));
     addTrackHandler(BlockTrackHandler.new("pyratite", BlockBuildTracker, Blocks.pyratiteMixer, false, {
         "customText": function(team, block, tile) {
-            return "has started pyratite production " + toBlockEmoji(block) + "" + toBlockEmoji(Items.pyratite);
+            return "pyratite prod " + toBlockEmoji(block) + "" + toBlockEmoji(Items.pyratite);
         }
     }));
     addTrackHandler(BlockTrackHandler.new("blast", BlockBuildTracker, Blocks.blastMixer, false, {
         "customText": function(team, block, tile) {
-            return "has started blast production " + toBlockEmoji(block) + "" + toBlockEmoji(Items.blastCompound);
+            return "blast prod " + toBlockEmoji(block) + "" + toBlockEmoji(Items.blastCompound);
         }
     }));
     addTrackHandler(BlockTrackHandler.new("foreshadow", BlockBuildTracker, Blocks.foreshadow, false, {}));
 
     addTrackHandler(BlockTrackHandler.new("siliconArcFurnace", BlockBuildTracker, Blocks.siliconArcFurnace, false, {
         "customText": function(team, block, tile) {
-            return "has started silicon production " + toBlockEmoji(block) + "" + toBlockEmoji(Items.silicon);
+            return "silicon prod " + toBlockEmoji(block) + "" + toBlockEmoji(Items.silicon);
         }
     }));
     addTrackHandler(BlockTrackHandler.new("carbideCrucible", BlockBuildTracker, Blocks.carbideCrucible, false, {
         "customText": function(team, block, tile) {
-            return "has started carbide production " + toBlockEmoji(block) + "" + toBlockEmoji(Items.carbide);
+            return "carbide prod " + toBlockEmoji(block) + "" + toBlockEmoji(Items.carbide);
         }
     }));
     addTrackHandler(BlockTrackHandler.new("surgeCrucible", BlockBuildTracker, Blocks.surgeCrucible, false, {
         "customText": function(team, block, tile) {
-            return "has started surge production " + toBlockEmoji(block) + "" + toBlockEmoji(Items.surgeAlloy);
+            return "surge prod " + toBlockEmoji(block) + "" + toBlockEmoji(Items.surgeAlloy);
         }
     }));
     addTrackHandler(BlockTrackHandler.new("phaseSynthesizer", BlockBuildTracker, Blocks.phaseSynthesizer, false, {
         "customText": function(team, block, tile) {
-            return "has started phase production " + toBlockEmoji(block) + "" + toBlockEmoji(Items.phaseFabric);
+            return "phase prod " + toBlockEmoji(block) + "" + toBlockEmoji(Items.phaseFabric);
         }
     }));
     addTrackHandler(BlockTrackHandler.new("cyanogenSynthesizer", BlockBuildTracker, Blocks.cyanogenSynthesizer, false, {
         "customText": function(team, block, tile) {
-            return "has started cyanogen production " + toBlockEmoji(block);
+            return "cyanogen prod " + toBlockEmoji(block);
         }
     }));
     addTrackHandler(BlockTrackHandler.new("electrolyzer", BlockBuildTracker, Blocks.electrolyzer, false, {
         "customText": function(team, block, tile) {
-            return "has started electrolysis " + toBlockEmoji(block);
+            return "electrolysis " + toBlockEmoji(block);
         }
     }));
     addTrackHandler(BlockTrackHandler.new("slagCentrifuge", BlockBuildTracker, Blocks.slagCentrifuge, false, {
         "customText": function(team, block, tile) {
-            return "has started slag centrifuge " + toBlockEmoji(block);
+            return "slag centrifuge " + toBlockEmoji(block);
         }
     }));
 
@@ -1381,7 +1371,7 @@ function clear() {
             var build = tile.build;
             var item = build ? build.dominantItem : null;
             var resName = item ? item.localizedName : "ore";
-            return "has started " + resName + " mining " + toBlockEmoji(block) + (item ? "" + toBlockEmoji(item) : "");
+            return resName + " mining " + toBlockEmoji(block) + (item ? "" + toBlockEmoji(item) : "");
         }
     };
     addTrackHandler(BlockTrackHandler.new("plasmaBore", BlockBuildTracker, Blocks.plasmaBore, false, erekirDrillEvent));
@@ -1407,7 +1397,7 @@ function clear() {
             var build = tile.build;
             var item = build ? build.dominantItem : null;
             var resName = item ? item.localizedName : "ore";
-            return "has started " + resName + " mining " + toBlockEmoji(block) + (item ? "" + toBlockEmoji(item) : "");
+            return resName + " mining " + toBlockEmoji(block) + (item ? "" + toBlockEmoji(item) : "");
         }
     };
     addTrackHandler(BlockTrackHandler.new("pneumaticDrill", BlockBuildTracker, Blocks.pneumaticDrill, false, drillEvent));
