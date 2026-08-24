@@ -351,6 +351,7 @@ var alertPip = {
         Draw.alpha(fade);
         Draw.rect(pipicon, this.px, this.py, 12 * this.animate, 12 * this.animate, this.pang);
         Draw.rect(icon, this.px + Mathf.range(this.shake), this.py + Mathf.range(this.shake), 4 * this.animate, 4 * this.animate);
+        Draw.reset();
     },
     retrigger(x, y, s, max) {
         if (Mathf.dst2(x - this.x, y - this.y) < (100 * 100)) {
