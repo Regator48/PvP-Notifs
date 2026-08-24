@@ -972,23 +972,25 @@ function syncAmmoSprites() {
     if (showTurretDmg) {
         applyAmmoSprites();
     } else {
-        // Restore originals from global map
+        // Restore originals: iterate current bullet types, find ones we modified
         try {
-            var keys = Object.keys(ammoOrigins);
-            for (var i = 0; i < keys.length; i++) {
-                var o = ammoOrigins[keys[i]];
+            var cls = java.lang.Class.forName("mindustry.entities.bullet.BasicBulletType");
+            var ff = cls.getDeclaredField("frontRegion");
+            ff.setAccessible(true);
+            var bf = cls.getDeclaredField("backRegion");
+            bf.setAccessible(true);
+            var list = Vars.content.bullets();
+            for (var i = 0; i < list.size; i++) {
+                var ty = list.get(i);
                 try {
-                    var cls = java.lang.Class.forName("mindustry.entities.bullet.BasicBulletType");
-                    var ff = cls.getDeclaredField("frontRegion");
-                    ff.setAccessible(true);
-                    ff.set(o.ty, o.front);
+                    if (!(ty instanceof Packages.mindustry.entities.bullet.BasicBulletType)) continue;
+                    var tkey = "" + ty;
+                    var o = ammoOrigins[tkey];
+                    if (o) {
+                        ff.set(ty, o.front);
+                        if (o.back != null) bf.set(ty, o.back);
+                    }
                 } catch (e) {}
-                try {
-                    var cls2 = java.lang.Class.forName("mindustry.entities.bullet.BasicBulletType");
-                    var bf = cls2.getDeclaredField("backRegion");
-                    bf.setAccessible(true);
-                    if (o.back != null) bf.set(o.ty, o.back);
-                } catch (e2) {}
             }
         } catch (e) {}
         ammoApplied = false;
