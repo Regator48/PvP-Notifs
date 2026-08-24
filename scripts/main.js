@@ -612,6 +612,23 @@ Events.on(EventType.ClientLoadEvent,
         var dmgBtn = t.button(Icon.star, Styles.clearTogglei, run(() => {
             pvplog("STAR PRESSED! was=" + showTurretDmg);
             showTurretDmg = !showTurretDmg;
+            // Dump BBT fields on first enable with debug
+            if (showTurretDmg && pvpDebug) {
+                try {
+                    var BBT = Packages.mindustry.entities.bullet.BasicBulletType;
+                    var list = Vars.content.bullets();
+                    for (var ai = 0; ai < list.size; ai++) {
+                        if (list.get(ai) instanceof BBT) {
+                            var cls = list.get(ai).getClass();
+                            var flds = cls.getDeclaredFields();
+                            var fnames = [];
+                            for (var fi = 0; fi < flds.length; fi++) fnames.push("" + flds[fi].getName());
+                            pvplog("BBT fields: " + fnames.join(", "));
+                            break;
+                        }
+                    }
+                } catch (e8) { pvplog("field dump error: " + e8); }
+            }
             dmgBtn.setChecked(showTurretDmg);
             Core.settings.put("pvpnotifs-showturretdmg", showTurretDmg);
             syncAmmoSprites();
