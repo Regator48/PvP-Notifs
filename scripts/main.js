@@ -1804,6 +1804,19 @@ function showUpdateConfig() {
     d.cont.add("e.g. C:\\Mindustry\\Mindustry.exe  ->  [white]leave empty to skip restart").row();
     d.cont.add(exeField).width(440).row();
 
+    var debugBtn;
+    var rebuildDebug = function() {
+        debugBtn.setText("Debug: " + (pvpDebug ? "ON" : "OFF"));
+        debugBtn.setColor(pvpDebug ? Color.green : Color.gray);
+    };
+    debugBtn = d.cont.button("Debug: OFF", function() {
+        pvpDebug = !pvpDebug;
+        Core.settings.put("pvpnotifs-debug", pvpDebug);
+        rebuildDebug();
+    }).width(160).color(Color.gray).get();
+    rebuildDebug();
+    d.cont.row();
+
     d.cont.button("Save", function() {
         Core.settings.put("pvpnotifs-branch", branchField.getText().trim());
         Core.settings.put("pvpnotifs-beta", beta);
