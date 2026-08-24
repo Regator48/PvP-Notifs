@@ -911,21 +911,31 @@ function applyAmmoSprites() {
         var BBT = Packages.mindustry.entities.bullet.BasicBulletType;
         var list = Vars.content.bullets();
         var swapped = 0, skipped = 0;
-        // Find a BasicBulletType instance for reflection
+        pvplog("ammo: bullets=" + list.size);
+        // Find a sample and dump its class info
         var sample = null;
         for (var si = 0; si < list.size; si++) {
-            try { if (list.get(si) instanceof BBT) { sample = list.get(si); break; } } catch (e) {}
+            try {
+                var s = list.get(si);
+                var cn = "" + s.getClass().getName();
+                if (cn.indexOf("BasicBulletType") >= 0) { sample = s; pvplog("sample found: " + cn); break; }
+            } catch (e) {}
         }
-        if (sample == null) { pvplog("ammo: no BasicBulletType instances found"); return; }
+        if (sample == null) {
+            // Try first non-null bullet
+            for (var si2 = 0; si2 < list.size; si2++) {
+                try { sample = list.get(si2); if (sample) { pvplog("fallback sample: " + sample.getClass().getName()); break; } } catch (e) {}
+            }
+        }
+        if (sample == null) { pvplog("ammo: no sample found"); return; }
         var frontField = findField(sample, "frontRegion");
         var backField = findField(sample, "backRegion");
         var trailField = findField(sample, "trailLength");
-        pvplog("ammo: frontField=" + (frontField != null) + " backField=" + (backField != null) + " trailField=" + (trailField != null) + " bullets=" + list.size);
-        if (frontField == null) { ammoStatus = "FAILED: cannot find frontRegion field"; pvplog("ammo: " + ammoStatus); return; }
+        pvplog("ammo: front=" + (frontField != null) + " back=" + (backField != null) + " trail=" + (trailField != null));
+        if (frontField == null) { ammoStatus = "FAILED: no frontRegion field"; pvplog("ammo: " + ammoStatus); return; }
         for (var i = 0; i < list.size; i++) {
             var ty = list.get(i);
             try {
-                // Skip if frontRegion field doesn't exist on this type
                 var hasFront = false;
                 try { frontField.get(ty); hasFront = true; } catch (e1) {}
                 if (!hasFront) { skipped++; continue; }
@@ -1051,6 +1061,7 @@ function syncAmmoSprites() {
     if (showTurretDmg) {
         applyAmmoSprites();
     } else {
+        pvplog("restore: starting, origins=" + Object.keys(ammoOrigins).length);
         // Restore originals: iterate current bullet types, find ones we modified
         try {
             var cls = java.lang.Class.forName("mindustry.entities.bullet.BasicBulletType");
@@ -1061,20 +1072,22 @@ function syncAmmoSprites() {
             var tf = cls.getDeclaredField("trailLength");
             tf.setAccessible(true);
             var list = Vars.content.bullets();
+            var restored = 0;
             for (var i = 0; i < list.size; i++) {
                 var ty = list.get(i);
                 try {
-                    if (!(ty instanceof Packages.mindustry.entities.bullet.BasicBulletType)) continue;
                     var tkey = "" + ty;
                     var o = ammoOrigins[tkey];
                     if (o) {
                         ff.set(ty, o.front);
                         if (o.back != null) bf.set(ty, o.back);
                         if (o.trail != null) tf.set(ty, o.trail);
+                        restored++;
                     }
                 } catch (e) {}
             }
-        } catch (e) {}
+            pvplog("restore: done, restored=" + restored);
+        } catch (e) { pvplog("restore err: " + e); }
         // Restore turret smoke effects
         try {
             var turretCls = java.lang.Class.forName("mindustry.world.blocks.defense.turrets.Turret");
