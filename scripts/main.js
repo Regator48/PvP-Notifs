@@ -798,7 +798,8 @@ var ammoOrigSaved = false;
 var triRegion = null;
 var ringCache = {};
 var ammoSaved = [];
-var ammoOrigins = {};  // key -> {front, back} original regions
+var ammoOrigins = {};  // key -> {front, back, trail} original regions
+var turretSmokeCache = {};  // block name -> {smoke, shoot} original effects
 var ammoStatus = "not applied yet";
 var ammoErrShown = false;
 
@@ -959,6 +960,26 @@ function applyAmmoSprites() {
         ammoApplied = true;
         ammoStatus = "swapped " + swapped + " bullet types (" + skipped + " non-basic skipped)";
         pvplog("ammo: " + ammoStatus);
+        // Remove turret smoke effects
+        try {
+            var turretCls = java.lang.Class.forName("mindustry.world.blocks.defense.turrets.Turret");
+            var smokeField = turretCls.getDeclaredField("smokeEffect");
+            smokeField.setAccessible(true);
+            var shootField = turretCls.getDeclaredField("shootEffect");
+            shootField.setAccessible(true);
+            Vars.content.blocks().each(function(b) {
+                try {
+                    if (turretCls.isInstance(b)) {
+                        var bname = "" + b.name;
+                        if (!turretSmokeCache[bname]) {
+                            turretSmokeCache[bname] = { smoke: smokeField.get(b), shoot: shootField.get(b) };
+                        }
+                        smokeField.set(b, null);
+                        shootField.set(b, null);
+                    }
+                } catch (e3) {}
+            });
+        } catch (e4) { pvplog("turret smoke clear err: " + e4); }
     } catch (e) {
         ammoStatus = "SWAP FAILED: " + e;
         pvplog("ammo: " + ammoStatus);
@@ -1018,6 +1039,26 @@ function syncAmmoSprites() {
                 } catch (e) {}
             }
         } catch (e) {}
+        // Restore turret smoke effects
+        try {
+            var turretCls = java.lang.Class.forName("mindustry.world.blocks.defense.turrets.Turret");
+            var smokeField = turretCls.getDeclaredField("smokeEffect");
+            smokeField.setAccessible(true);
+            var shootField = turretCls.getDeclaredField("shootEffect");
+            shootField.setAccessible(true);
+            Vars.content.blocks().each(function(b) {
+                try {
+                    if (turretCls.isInstance(b)) {
+                        var bname = "" + b.name;
+                        var cached = turretSmokeCache[bname];
+                        if (cached) {
+                            smokeField.set(b, cached.smoke);
+                            shootField.set(b, cached.shoot);
+                        }
+                    }
+                } catch (e3) {}
+            });
+        } catch (e4) {}
         ammoApplied = false;
     }
 }
