@@ -918,7 +918,8 @@ function applyAmmoSprites() {
         if (sample == null) { pvplog("ammo: no BasicBulletType instances found"); return; }
         var frontField = findField(sample, "frontRegion");
         var backField = findField(sample, "backRegion");
-        pvplog("ammo: frontField=" + (frontField != null) + " backField=" + (backField != null) + " bullets=" + list.size);
+        var trailField = findField(sample, "trailLength");
+        pvplog("ammo: frontField=" + (frontField != null) + " backField=" + (backField != null) + " trailField=" + (trailField != null) + " bullets=" + list.size);
         if (frontField == null) { ammoStatus = "FAILED: cannot find frontRegion field"; pvplog("ammo: " + ammoStatus); return; }
         for (var i = 0; i < list.size; i++) {
             var ty = list.get(i);
@@ -940,7 +941,9 @@ function applyAmmoSprites() {
                     var origFront = frontField.get(ty);
                     var origBack = null;
                     if (backField != null) origBack = backField.get(ty);
-                    ammoOrigins[tkey] = { front: origFront, back: origBack, ty: ty };
+                    var origTrail = null;
+                    if (trailField != null) origTrail = trailField.get(ty);
+                    ammoOrigins[tkey] = { front: origFront, back: origBack, trail: origTrail, ty: ty };
                 }
                 // Set custom region
                 frontField.set(ty, reg);
@@ -948,6 +951,8 @@ function applyAmmoSprites() {
                     var curBack = backField.get(ty);
                     if (curBack != null) backField.set(ty, reg);
                 }
+                // Remove trail/smoke
+                if (trailField != null) trailField.set(ty, 0);
                 swapped++;
             } catch (e2) {}
         }
@@ -996,6 +1001,8 @@ function syncAmmoSprites() {
             ff.setAccessible(true);
             var bf = cls.getDeclaredField("backRegion");
             bf.setAccessible(true);
+            var tf = cls.getDeclaredField("trailLength");
+            tf.setAccessible(true);
             var list = Vars.content.bullets();
             for (var i = 0; i < list.size; i++) {
                 var ty = list.get(i);
@@ -1006,6 +1013,7 @@ function syncAmmoSprites() {
                     if (o) {
                         ff.set(ty, o.front);
                         if (o.back != null) bf.set(ty, o.back);
+                        if (o.trail != null) tf.set(ty, o.trail);
                     }
                 } catch (e) {}
             }
