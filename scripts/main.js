@@ -962,10 +962,7 @@ function applyAmmoSprites() {
                 // Set custom region
                 frontField.set(ty, reg);
                 if (backField != null) {
-                    try {
-                        var curBack = backField.get(ty);
-                        if (curBack != null) backField.set(ty, reg);
-                    } catch (e) {}
+                    try { backField.set(ty, reg); } catch (e) {}
                 }
                 swapped++;
             } catch (e2) {}
