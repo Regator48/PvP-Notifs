@@ -534,7 +534,6 @@ Events.on(EventType.BlockDestroyEvent, cons(e => {
     if (tile.team() == Vars.player.team()) {
         var severe = 0.01;
         if (tile.build.block.category == Category.distribution) {
-            severe *= 1;
         } else if (tile.build.block.category == Category.defense) {
             severe *= Math.min(5 * tile.build.block.size, 3);
         } else if (tile.build.block.category == Category.turret) {
