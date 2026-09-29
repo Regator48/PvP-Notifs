@@ -40,10 +40,6 @@ function popup(intable) {
     lastUnlockLayout = intable;
 }
 
-function chatColor(color) {
-    return "[#" + color.toString() + "]";
-}
-
 function chatTeamColor(team) {
     return "[#" + team.color.toString() + "]";
 }
@@ -71,6 +67,7 @@ var techSummaryTimer = null;
 var btnDragging = false;
 var bDX = 0, bDY = 0;
 var btnTable = null;
+var powerBarRef = null;
 
 // The queue drains at most one message per ~2s (see update()'s prevsent gate). If a
 // player bulk-builds 40 turrets while alerts are disabled, the backlog can pile up
@@ -94,12 +91,6 @@ function eventLogInfo(team, message) {
 function eventLogBlock(team, block, tile) {
     if (!tile) return;
     enqueue("E-" + eventid + " Team " + chatTeamColor(team) + team.name + "[white] has placed:" + block.localizedName + toBlockEmoji(block) + " at (" + tile.x + "," + tile.y + ")");
-    eventid++;
-}
-
-function eventLog(team, tile) {
-    if (!tile) return;
-    enqueue("E-" + eventid + " Team " + chatTeamColor(team) + team.name + "[white] has placed:" + getConstructingBlock(tile).localizedName + " at (" + tile.x + "," + tile.y + ")");
     eventid++;
 }
 
@@ -198,15 +189,6 @@ const BlockTrackHandler = {
 };
 
 const TeamAchievement = {
-    silicon: false,
-    graphite: false,
-    miningDrone: false,
-    titanium: false,
-    thorium: false,
-    plast: false,
-    phase: false,
-    surge: false,
-    foreshadow: false,
     units: null,
     team: null,
     milestones: null,
@@ -469,9 +451,14 @@ var alertPip = {
 
             Draw.color(col);
             Draw.alpha(0.5);
-            this.points.each(p => {
-                Lines.line(this.px, this.py - 8, p.x, p.y);
-            });
+            // Indexed walk instead of each(): this runs per pip per drawn frame and
+            // the arrow function was a fresh closure every time. points is an
+            // ArraySeq, so index order is the same order each() visited.
+            var pts = this.points;
+            for (var pi = 0; pi < pts.size; pi++) {
+                var pt = pts.get(pi);
+                Lines.line(this.px, this.py - 8, pt.x, pt.y);
+            }
         } else {
             let dx = this.x - camera.position.x;
             let dy = this.y - camera.position.y;
@@ -513,7 +500,6 @@ var alertPip = {
     }
 };
 
-var inConstruction = new Seq();
 var queue = new Seq();
 var prefix = "/t";
 var prevsent = 0;
@@ -522,8 +508,14 @@ var enabled = false;
 Events.on(EventType.BlockDestroyEvent, cons(e => {
     var tile = e.tile;
     if (!tile) return;
+    // Every branch below dereferences the building. A destroy that arrives without
+    // one used to throw an NPE straight out of the event bus, which skips the
+    // remaining listeners for that event.
+    var build = tile.build;
+    if (!build) return;
+    var block = build.block;
 
-    if (tile.build instanceof CoreBlock.CoreBuild) {
+    if (build instanceof CoreBlock.CoreBuild) {
         if (tile.team() == Vars.player.team()) {
             queue.add("[red]!!Core at (" + tile.x + "," + tile.y + ") was lost!!");
         } else {
@@ -533,29 +525,29 @@ Events.on(EventType.BlockDestroyEvent, cons(e => {
 
     if (tile.team() == Vars.player.team()) {
         var severe = 0.01;
-        if (tile.build.block.category == Category.distribution) {
-        } else if (tile.build.block.category == Category.defense) {
-            severe *= Math.min(5 * tile.build.block.size, 3);
-        } else if (tile.build.block.category == Category.turret) {
-            severe *= Math.min(10 * tile.build.block.size, 3);
-        } else if (tile.build.block.category == Category.power) {
-            if (tile.build.block instanceof PowerGenerator) {
-                severe *= Math.min(150 / tile.build.block.size, 3);
-            } else if (tile.build.block instanceof PowerNode) {
-                severe *= Math.min(3 / tile.build.block.size, 3);
+        // Category.distribution deliberately has no multiplier (severe stays 0.01).
+        if (block.category == Category.defense) {
+            severe *= Math.min(5 * block.size, 3);
+        } else if (block.category == Category.turret) {
+            severe *= Math.min(10 * block.size, 3);
+        } else if (block.category == Category.power) {
+            if (block instanceof PowerGenerator) {
+                severe *= Math.min(150 / block.size, 3);
+            } else if (block instanceof PowerNode) {
+                severe *= Math.min(3 / block.size, 3);
             } else {
-                severe *= Math.min(50 / tile.build.block.size, 3);
+                severe *= Math.min(50 / block.size, 3);
             }
-        } else if (tile.build.block.category == Category.logic) {
-            severe *= Math.min(10 / tile.build.block.size, 3);
-        } else if (tile.build.block.category == Category.production) {
-            severe *= Math.min(tile.build.block.size == 2 ? 3 : 30 / tile.build.block.size, 3);
-        } else if (tile.build.block.category == Category.crafting) {
-            severe *= Math.min(30 / tile.build.block.size, 3);
-        } else if (tile.build.block.category == Category.units) {
-            severe *= Math.min(200 / tile.build.block.size, 3);
-        } else if (tile.build.block.category == Category.effect) {
-            severe *= Math.min(5 / tile.build.block.size, 3);
+        } else if (block.category == Category.logic) {
+            severe *= Math.min(10 / block.size, 3);
+        } else if (block.category == Category.production) {
+            severe *= Math.min(block.size == 2 ? 3 : 30 / block.size, 3);
+        } else if (block.category == Category.crafting) {
+            severe *= Math.min(30 / block.size, 3);
+        } else if (block.category == Category.units) {
+            severe *= Math.min(200 / block.size, 3);
+        } else if (block.category == Category.effect) {
+            severe *= Math.min(5 / block.size, 3);
         }
         triggerPip(tile.getX(), tile.getY(), severe, 3);
     }
@@ -578,10 +570,17 @@ Events.on(EventType.ClientLoadEvent,
 
         var coreplus = (t) => {
             if (!t) return;
+            // ClientLoadEvent can run more than once (client reload). Drop the bar we
+            // added last time instead of stacking a second one into the same row.
+            if (powerBarRef != null) {
+                powerBarRef.remove();
+                powerBarRef = null;
+            }
             t.row();
             var powbar = new Bar("Power", Pal.accent, floatp(() => { return getBatLevel(); }));
             powbar.set(prov(() => { return "Power: " + (powerBalance() >= 0 ? "+" : "") + Strings.fixed(powerBalance() * 60.0, 1); }), floatp(() => { return getBatLevel(); }), Pal.accent);
             t.add(powbar).width(200).height(25).pad(4);
+            powerBarRef = powbar;
         };
         coreplus(Vars.ui.hudGroup.find(boolf(e => { return e instanceof CoreItemsDisplay; })));
 
@@ -589,6 +588,12 @@ Events.on(EventType.ClientLoadEvent,
         var savedBtnY = Core.settings.getInt("pvpnotifs-by", 4);
 
         Core.app.post(() => {
+        // Same re-entry guard as coreplus above: remove the previous button strip
+        // before rebuilding, otherwise the buttons render on top of each other.
+        if (btnTable != null) {
+            btnTable.remove();
+            btnTable = null;
+        }
         var t = new Table();
         t.background(Styles.black6);
         t.touchable = Touchable.enabled;
@@ -625,6 +630,9 @@ Events.on(EventType.ClientLoadEvent,
                 return true;
             },
             touchUp: function(event, x, y, pointer, button) {
+                // Mirror touchDown: a right/middle click was consumed by the editor
+                // dialog, it must not also fire the button's own action on release.
+                if (button == 1 || button == 2) return true;
                 if (voteTimer) { voteTimer.cancel(); voteTimer = null; }
                 if (!voteLongFired) {
                     Call.sendChatMessage(Core.settings.getString("pvpnotifs-vote", "/vote y"));
@@ -682,6 +690,9 @@ Events.on(EventType.ClientLoadEvent,
                 return true;
             },
             touchUp: function(event, x, y, pointer, button) {
+                // Mirror touchDown: a right/middle click was consumed by the settings
+                // dialog, it must not also kick off a network update check.
+                if (button == 1 || button == 2) return true;
                 if (updateTimer) { updateTimer.cancel(); updateTimer = null; }
                 if (!updateLongFired) {
                     checkForUpdates();
@@ -893,7 +904,7 @@ function ensureAmmoTextures() {
 // bullet's width x height box. Cached/quantized so only a handful of textures exist.
 function getRingRegion(radiusUnits, boxMaxUnits) {
     try {
-        if (!ringCache._ok) { ensureAmmoTextures(); if (!ammoBuilt) return null; }
+        if (!ammoBuilt) { ensureAmmoTextures(); if (!ammoBuilt) return null; }
         var TAN = 0xddcc88ff | 0;  // muted tan, same as triangle
         var frac = Math.min(Math.max(radiusUnits / Math.max(boxMaxUnits, 1), 0.12), 1.0);
         var key = Math.round(frac * 24);
@@ -1037,16 +1048,18 @@ function applyAmmoSprites() {
             var missileCount = 0;
             // Use Class.forName to get real Java classes (Rhino proxy blocks getClass())
             var unitTypeCls = java.lang.Class.forName("mindustry.type.UnitType");
-            var trailField = null, engineField = null, trailColorField = null, enginesField = null;
-            try { trailField = unitTypeCls.getDeclaredField("trailLength"); trailField.setAccessible(true); } catch (e) {}
+            // Distinct names: the sample bullet's trailField above is still in scope,
+            // and the two were clobbering each other.
+            var utTrailField = null, engineField = null, trailColorField = null, enginesField = null;
+            try { utTrailField = unitTypeCls.getDeclaredField("trailLength"); utTrailField.setAccessible(true); } catch (e) {}
             try { engineField = unitTypeCls.getDeclaredField("engineSize"); engineField.setAccessible(true); } catch (e) {}
             try { trailColorField = unitTypeCls.getDeclaredField("trailColor"); trailColorField.setAccessible(true); } catch (e) {}
             try { enginesField = unitTypeCls.getDeclaredField("engines"); enginesField.setAccessible(true); } catch (e) {}
-            if (trailField) pvplog("trailLength field found");
+            if (utTrailField) pvplog("trailLength field found");
             else pvplog("trailLength field NOT found");
             Vars.content.units().each(function(ut) {
                 try {
-                    var tl = trailField ? trailField.getInt(ut) : 0;
+                    var tl = utTrailField ? utTrailField.getInt(ut) : 0;
                     var es = engineField ? engineField.getFloat(ut) : 0;
                     var eng = enginesField ? enginesField.get(ut) : null;
                     var engSize = eng ? eng.size : 0;
@@ -1061,7 +1074,7 @@ function applyAmmoSprites() {
                                 enginesSize: engSize
                             };
                         }
-                        if (trailField) { trailField.setInt(ut, 0); pvplog("set " + utname + " trailLength=0 (was " + tl + ")"); }
+                        if (utTrailField) { utTrailField.setInt(ut, 0); pvplog("set " + utname + " trailLength=0 (was " + tl + ")"); }
                         if (engineField) engineField.setFloat(ut, 0);
                         if (trailColorField) trailColorField.set(ut, null);
                         if (eng) { eng.clear(); pvplog("cleared " + utname + " engines (was " + engSize + ")"); }
@@ -1150,15 +1163,20 @@ function syncAmmoSprites() {
     }
 }
 
+function drawPip(t) {
+    try { t.draw(); } catch (e) { Log.err("PvP-Alerts pip draw failed", e); }
+}
+
+// Built once, not per drawn frame: run() allocates a java.lang.Runnable and the
+// inner arrow function a closure, on every single frame. pips is read at call
+// time, so the update loop's pruning swap is still picked up.
+var drawPips = run(() => { pips.each(drawPip); });
+
 Events.run(Trigger.drawOver, () => {
     try {
         jot.drawMouse();
 
-        Draw.draw(Layer.overlayUI + 0.01, run(() => {
-            pips.each(t => {
-                try { t.draw(); } catch (e) { Log.err("PvP-Alerts pip draw failed", e); }
-            });
-        }));
+        Draw.draw(Layer.overlayUI + 0.01, drawPips);
     } catch (e) { Log.err("PvP-Alerts drawOver failed", e); }
 });
 
@@ -1169,17 +1187,52 @@ try { showTurretDmg = Core.settings.getBool("pvpnotifs-showturretdmg", false); }
 var dmgBtnRef = null;
 try { syncAmmoSprites(); } catch (e) {}
 
+// --- per-frame helpers ---
+// These all run inside Events.run(Trigger.update) on every frame, so they are
+// declared once at load time. Declared inline they were re-created 60+ times a
+// second (arrow function, closure or Seq) and handed straight to the GC.
+function pipAlive(t) { return t.life < t.maxlife; }
+
+function spamPending(t) { return t.timer >= 0; }
+
+function tickSpam(t) {
+    t.timer += Time.delta;
+    if (t.timer > 600) {
+        eventLogInfo(t.team, "has issued command to attack.");
+        t.timer = -1;
+    }
+}
+
+function trackerPending(t) { return !t.done; }
+
+function tickTracker(t) { t.updateTrack(); }
+
+function clearUnitTrail(u) {
+    try { if (u.trail != null) u.trail = null; } catch (e) {}
+}
+
+// Distinct power graphs seen this frame, so a grid is only counted once.
+var gridSeq = new Seq();
+
+function consumePowerNode(c) {
+    var build = c;
+    if (build && build.build) build = build.build;
+    if (!build || !build.power) return;
+    var graph = build.power.graph;
+    if (!graph) return;
+    if (!gridSeq.contains(graph)) {
+        gridSeq.add(graph);
+        stored += graph.getBatteryStored();
+        battery += graph.getTotalBatteryCapacity();
+        powerbal += graph.getPowerBalance();
+    }
+}
+
 Events.run(Trigger.update, () => {
     try {
-    pips = pruneSeq(pips, (t) => { return t.life < t.maxlife; });
-    anticommandspam = pruneSeq(anticommandspam, (t) => { return t.timer >= 0; });
-    anticommandspam.each(t => {
-        t.timer += Time.delta;
-        if (t.timer > 600) {
-            eventLogInfo(t.team, "has issued command to attack.");
-            t.timer = -1;
-        }
-    });
+    pips = pruneSeq(pips, pipAlive);
+    anticommandspam = pruneSeq(anticommandspam, spamPending);
+    anticommandspam.each(tickSpam);
 
     if (playerAI && Vars.player.unit() && Vars.player.unit().type) {
         try {
@@ -1233,33 +1286,17 @@ Events.run(Trigger.update, () => {
 
     update();
 
-    var gridSeq = new Seq();
+    gridSeq.clear();
     battery = 0.01;
     stored = 0;
     powerbal = 0;
 
-    let tilecons = (c) => {
-        var build = c;
-        if (build && build.build) build = build.build;
-        if (!build || !build.power) return;
-        let graph = build.power.graph;
-        if (!graph) return;
-        if (!gridSeq.contains(graph)) {
-            gridSeq.add(graph);
-            stored += graph.getBatteryStored();
-            battery += graph.getTotalBatteryCapacity();
-            powerbal += graph.getPowerBalance();
-        }
-    };
-
-    iterateOver(Vars.indexer.getFlagged(Vars.player.team(), BlockFlag.generator).iterator(), tilecons);
-    iterateOver(Vars.indexer.getFlagged(Vars.player.team(), BlockFlag.reactor).iterator(), tilecons);
+    iterateOver(Vars.indexer.getFlagged(Vars.player.team(), BlockFlag.generator).iterator(), consumePowerNode);
+    iterateOver(Vars.indexer.getFlagged(Vars.player.team(), BlockFlag.reactor).iterator(), consumePowerNode);
     // Null trails on all units every frame (smoke removal)
     if (showTurretDmg && ammoApplied) {
         try {
-            Groups.unit.each(function(u) {
-                try { if (u.trail != null) u.trail = null; } catch (e) {}
-            });
+            Groups.unit.each(clearUnitTrail);
         } catch (e) {}
     }
     } catch (e) { Log.err("PvP-Alerts update loop failed", e); }
@@ -1268,11 +1305,19 @@ Events.run(Trigger.update, () => {
 var prevmap = "";
 
 Events.on(EventType.WorldLoadEvent, e => {
-    if (Vars.state.map.name() != prevmap) {
-        clear();
-        prevmap = Vars.state.map.name();
-        pips.clear();
-        // Reset ammo after content reload
+    var mapname = Vars.state.map.name();
+    var mapChanged = (mapname != prevmap);
+    prevmap = mapname;
+    // Tracker/milestone state is per match, so it has to be dropped on *every*
+    // world load. Gating the whole block on the map name left the previous
+    // match's completed milestones in place when the same map was replayed (a
+    // nameless map never cleared at all), which permanently suppressed those
+    // alerts for the rest of the session.
+    clear();
+    pips.clear();
+    // Content only reloads when the map actually changed, so the ammo swap is
+    // only re-applied in that case.
+    if (mapChanged) {
         ammoApplied = false;
         ammoOrigins = {};
         if (showTurretDmg) {
@@ -1298,14 +1343,11 @@ function update() {
     }
     prevsent += Time.delta;
 
-    trackers.each((t) => {
-        t.updateTrack();
-    });
-    trackers = pruneSeq(trackers, (t) => { return !t.done; });
+    trackers.each(tickTracker);
+    trackers = pruneSeq(trackers, trackerPending);
 }
 
 var wasCleared = false;
-var allTeams = new Seq();
 
 function clear() {
     anticommandspam.clear();
@@ -1313,7 +1355,6 @@ function clear() {
     queue.clear();
     queueDropped = 0;
     trackers.clear();
-    allTeams.clear();
     if (teams) {
         var keys = Object.keys(teams);
         for (var i = 0; i < keys.length; i++) {
@@ -1339,9 +1380,6 @@ function clear() {
                     }
                 }
             }
-            if (!allTeams.contains(tile.team())) {
-                allTeams.add(tile.team());
-            }
         }
     });
 }
@@ -1356,9 +1394,6 @@ Events.on(EventType.BlockBuildBeginEvent, e => {
                 blocktrackhandle[keys[i]].processBuildingEvent(team, e.tile);
             }
         }
-    }
-    if (!allTeams.contains(team)) {
-        allTeams.add(team);
     }
 });
 
@@ -1419,10 +1454,8 @@ const onChat = function(sender, message) {
                 var teamUnits = {};
                 try {
                     var it = Groups.unit.iterator();
-                    var count = 0;
                     while (it.hasNext()) {
                         var unit = it.next();
-                        count++;
                         if (!unit || unit.dead) continue;
                         var tid = unit.team.id;
                         if (!teamUnits[tid]) {
@@ -1591,8 +1624,10 @@ function rebuildTechSummary(t) {
         var td = teamData[teamIds[ti]];
         var tm = td.team;
         var isPlayer = (tm == Vars.player.team());
-        var prefix = isPlayer ? "[white]Your team" : "[#" + tm.color.toString() + "]" + tm.name + "[white]";
-        t.add(prefix);
+        // Was a local named `prefix`, shadowing the module chat prefix, and it
+        // inlined the same colour escape chatTeamColor() already builds.
+        var label = isPlayer ? "[white]Your team" : chatTeamColor(tm) + tm.name + "[white]";
+        t.add(label);
         t.row();
 
         var matLine = "[gray]Materials: ";
@@ -2144,7 +2179,6 @@ function checkForUpdates() {
                 d.addCloseButton();
                 d.cont.add("Channel: [white]" + (beta ? "beta (pre-releases)" : "stable")).pad(5).row();
                 d.cont.add("Installed: [white]v" + currentVersion).pad(5).row();
-                var offered = false;
                 if (pick == null) {
                     d.cont.add("[red]No matching release found.").pad(5).row();
                     d.cont.button("Open Releases", function() {
@@ -2170,7 +2204,6 @@ function checkForUpdates() {
                                 d.hide();
                                 downloadAndReplace(assetUrl);
                             }).width(180).color(Color.green);
-                            offered = true;
                         } else {
                             d.cont.add("[yellow]Update available, but the release has no PvP-Alerts-*.zip asset.").pad(5).row();
                         }
