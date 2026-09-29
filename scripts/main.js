@@ -1,4 +1,5 @@
-print("[green]PvP-Alerts v1.4.0 loaded!");
+// Version is printed from the loaded Mod metadata on ClientLoadEvent, not hardcoded
+// here — a literal in this line silently went stale across ~25 releases.
 const jot = require("jotfunction");
 
 var pvpDebug = false;
@@ -71,20 +72,34 @@ var btnDragging = false;
 var bDX = 0, bDY = 0;
 var btnTable = null;
 
+// The queue drains at most one message per ~2s (see update()'s prevsent gate). If a
+// player bulk-builds 40 turrets while alerts are disabled, the backlog can pile up
+// with nothing bound on it. Cap it and say so, rather than silently holding memory.
+var QUEUE_MAX = 60;
+var queueDropped = 0;
+
+function enqueue(msg) {
+    if (queue.size >= QUEUE_MAX) {
+        queueDropped++;
+        return;
+    }
+    queue.add(msg);
+}
+
 function eventLogInfo(team, message) {
-    queue.add("E-" + eventid + " Team " + chatTeamColor(team) + team.name + "[white] " + message);
+    enqueue("E-" + eventid + " Team " + chatTeamColor(team) + team.name + "[white] " + message);
     eventid++;
 }
 
 function eventLogBlock(team, block, tile) {
     if (!tile) return;
-    queue.add("E-" + eventid + " Team " + chatTeamColor(team) + team.name + "[white] has placed:" + block.localizedName + toBlockEmoji(block) + " at (" + tile.x + "," + tile.y + ")");
+    enqueue("E-" + eventid + " Team " + chatTeamColor(team) + team.name + "[white] has placed:" + block.localizedName + toBlockEmoji(block) + " at (" + tile.x + "," + tile.y + ")");
     eventid++;
 }
 
 function eventLog(team, tile) {
     if (!tile) return;
-    queue.add("E-" + eventid + " Team " + chatTeamColor(team) + team.name + "[white] has placed:" + getConstructingBlock(tile).localizedName + " at (" + tile.x + "," + tile.y + ")");
+    enqueue("E-" + eventid + " Team " + chatTeamColor(team) + team.name + "[white] has placed:" + getConstructingBlock(tile).localizedName + " at (" + tile.x + "," + tile.y + ")");
     eventid++;
 }
 
@@ -236,6 +251,131 @@ function addTrackHandler(bth) {
 function addTracker(tracker) {
     trackers.add(tracker);
 }
+
+// Single source of truth for every tracked block. Previously this ~120 line block
+// was copy-pasted between ClientLoadEvent and clear(); a change to one copy silently
+// left the other stale, which is how tracker gaps appeared between maps.
+function registerTrackHandlers() {
+    var oreDrillEvent = {
+        "customText": function(team, block, tile) {
+            var build = tile.build;
+            var item = build ? build.dominantItem : null;
+            var resName = item ? item.localizedName : "ore";
+            return resName + " mining " + toBlockEmoji(block) + (item ? "" + toBlockEmoji(item) : "");
+        }
+    };
+    var reconEvent = {
+        "customText": function(team, block, tile) {
+            return "can now make Tier-" + Math.round((block.size + 1) * 0.5) + " units" + toBlockEmoji(block);
+        }
+    };
+
+    // Materials. <milestone> is per-team and fires once, the first time that team
+    // completes one of these blocks.
+    addTrackHandler(BlockTrackHandler.new("graphite", BlockBuildTracker, Blocks.graphitePress, false, {
+        "customText": function(team, block, tile) {
+            return "graphite prod " + toBlockEmoji(block) + "" + toBlockEmoji(Items.graphite);
+        }
+    }));
+    addTrackHandler(BlockTrackHandler.new("silicon", BlockBuildTracker, Blocks.siliconSmelter, false, {
+        "customText": function(team, block, tile) {
+            return "silicon prod " + toBlockEmoji(block) + "" + toBlockEmoji(Items.silicon);
+        }
+    }));
+    addTrackHandler(BlockTrackHandler.new("siliconCrucible", BlockBuildTracker, Blocks.siliconCrucible, false, {
+        "customText": function(team, block, tile) {
+            return "mass silicon prod " + toBlockEmoji(block) + "" + toBlockEmoji(Items.silicon);
+        }
+    }));
+    addTrackHandler(BlockTrackHandler.new("kiln", BlockBuildTracker, Blocks.kiln, false, {
+        "customText": function(team, block, tile) {
+            return "metaglass prod " + toBlockEmoji(block) + "" + toBlockEmoji(Items.metaglass);
+        }
+    }));
+    addTrackHandler(BlockTrackHandler.new("plast", BlockBuildTracker, Blocks.plastaniumCompressor, false, {
+        "customText": function(team, block, tile) {
+            return "plastanium prod " + toBlockEmoji(block) + "" + toBlockEmoji(Items.plastanium);
+        }
+    }));
+    addTrackHandler(BlockTrackHandler.new("phase", BlockBuildTracker, Blocks.phaseWeaver, false, {
+        "customText": function(team, block, tile) {
+            return "phase prod " + toBlockEmoji(block) + "" + toBlockEmoji(Items.phaseFabric);
+        }
+    }));
+    addTrackHandler(BlockTrackHandler.new("surge", BlockBuildTracker, Blocks.surgeSmelter, false, {
+        "customText": function(team, block, tile) {
+            return "surge prod " + toBlockEmoji(block) + "" + toBlockEmoji(Items.surgeAlloy);
+        }
+    }));
+    addTrackHandler(BlockTrackHandler.new("pyratite", BlockBuildTracker, Blocks.pyratiteMixer, false, {
+        "customText": function(team, block, tile) {
+            return "pyratite prod " + toBlockEmoji(block) + "" + toBlockEmoji(Items.pyratite);
+        }
+    }));
+    addTrackHandler(BlockTrackHandler.new("blast", BlockBuildTracker, Blocks.blastMixer, false, {
+        "customText": function(team, block, tile) {
+            return "blast prod " + toBlockEmoji(block) + "" + toBlockEmoji(Items.blastCompound);
+        }
+    }));
+    addTrackHandler(BlockTrackHandler.new("foreshadow", BlockBuildTracker, Blocks.foreshadow, false, {}));
+
+    // Erekir-era material producers.
+    addTrackHandler(BlockTrackHandler.new("siliconArcFurnace", BlockBuildTracker, Blocks.siliconArcFurnace, false, {
+        "customText": function(team, block, tile) {
+            return "silicon prod " + toBlockEmoji(block) + "" + toBlockEmoji(Items.silicon);
+        }
+    }));
+    addTrackHandler(BlockTrackHandler.new("carbideCrucible", BlockBuildTracker, Blocks.carbideCrucible, false, {
+        "customText": function(team, block, tile) {
+            return "carbide prod " + toBlockEmoji(block) + "" + toBlockEmoji(Items.carbide);
+        }
+    }));
+    addTrackHandler(BlockTrackHandler.new("surgeCrucible", BlockBuildTracker, Blocks.surgeCrucible, false, {
+        "customText": function(team, block, tile) {
+            return "surge prod " + toBlockEmoji(block) + "" + toBlockEmoji(Items.surgeAlloy);
+        }
+    }));
+    addTrackHandler(BlockTrackHandler.new("phaseSynthesizer", BlockBuildTracker, Blocks.phaseSynthesizer, false, {
+        "customText": function(team, block, tile) {
+            return "phase prod " + toBlockEmoji(block) + "" + toBlockEmoji(Items.phaseFabric);
+        }
+    }));
+    addTrackHandler(BlockTrackHandler.new("cyanogenSynthesizer", BlockBuildTracker, Blocks.cyanogenSynthesizer, false, {
+        "customText": function(team, block, tile) {
+            return "cyanogen prod " + toBlockEmoji(block);
+        }
+    }));
+    addTrackHandler(BlockTrackHandler.new("electrolyzer", BlockBuildTracker, Blocks.electrolyzer, false, {
+        "customText": function(team, block, tile) {
+            return "electrolysis " + toBlockEmoji(block);
+        }
+    }));
+    addTrackHandler(BlockTrackHandler.new("slagCentrifuge", BlockBuildTracker, Blocks.slagCentrifuge, false, {
+        "customText": function(team, block, tile) {
+            return "slag centrifuge " + toBlockEmoji(block);
+        }
+    }));
+
+    // Ore drills: report whatever ore that specific drill is currently dominant on.
+    addTrackHandler(BlockTrackHandler.new("plasmaBore", BlockBuildTracker, Blocks.plasmaBore, false, oreDrillEvent));
+    addTrackHandler(BlockTrackHandler.new("largePlasmaBore", BlockBuildTracker, Blocks.largePlasmaBore, false, oreDrillEvent));
+    addTrackHandler(BlockTrackHandler.new("impactDrill", BlockBuildTracker, Blocks.impactDrill, false, oreDrillEvent));
+    addTrackHandler(BlockTrackHandler.new("eruptionDrill", BlockBuildTracker, Blocks.eruptionDrill, false, oreDrillEvent));
+    addTrackHandler(BlockTrackHandler.new("pneumaticDrill", BlockBuildTracker, Blocks.pneumaticDrill, false, oreDrillEvent));
+    addTrackHandler(BlockTrackHandler.new("laserDrill", BlockBuildTracker, Blocks.laserDrill, false, oreDrillEvent));
+    addTrackHandler(BlockTrackHandler.new("blastDrill", BlockBuildTracker, Blocks.blastDrill, false, oreDrillEvent));
+
+    // Every unit factory / reconstructor, so new content is tracked automatically.
+    Vars.content.blocks().each((e2) => {
+        if (e2 instanceof UnitFactory) {
+            addTrackHandler(BlockTrackHandler.new(e2.name, BlockBuildTracker, e2, false, {}));
+        }
+        if (e2 instanceof Reconstructor) {
+            addTrackHandler(BlockTrackHandler.new(e2.name, BlockBuildTracker, e2, false, reconEvent));
+        }
+    });
+}
+
 
 function getTeamAch(team) {
     if (!teams) {
@@ -427,123 +567,9 @@ Events.on(EventType.ClientLoadEvent,
         alerticonlow = Core.atlas.find("pvpnotifs-alert-0") || Core.atlas.find("icon-remove");
         alerticonhigh = Core.atlas.find("pvpnotifs-alert-1") || Core.atlas.find("icon-cancel");
         pipicon = Core.atlas.find("pvpnotifs-pip") || Core.atlas.find("pip");
+        print("[green]PvP-Alerts v" + localModVersion() + " loaded!");
 
-        addTrackHandler(BlockTrackHandler.new("graphite", BlockBuildTracker, Blocks.graphitePress, false, {
-            "customText": function(team, block, tile) {
-                return "graphite prod " + toBlockEmoji(block) + "" + toBlockEmoji(Items.graphite);
-            }
-        }));
-        addTrackHandler(BlockTrackHandler.new("silicon", BlockBuildTracker, Blocks.siliconSmelter, false, {
-            "customText": function(team, block, tile) {
-                return "silicon prod " + toBlockEmoji(block) + "" + toBlockEmoji(Items.silicon);
-            }
-        }));
-        addTrackHandler(BlockTrackHandler.new("siliconCrucible", BlockBuildTracker, Blocks.siliconCrucible, false, {
-            "customText": function(team, block, tile) {
-                return "mass silicon prod " + toBlockEmoji(block) + "" + toBlockEmoji(Items.silicon);
-            }
-        }));
-        addTrackHandler(BlockTrackHandler.new("kiln", BlockBuildTracker, Blocks.kiln, false, {
-            "customText": function(team, block, tile) {
-                return "metaglass prod " + toBlockEmoji(block) + "" + toBlockEmoji(Items.metaglass);
-            }
-        }));
-        addTrackHandler(BlockTrackHandler.new("plast", BlockBuildTracker, Blocks.plastaniumCompressor, false, {
-            "customText": function(team, block, tile) {
-                return "plastanium prod " + toBlockEmoji(block) + "" + toBlockEmoji(Items.plastanium);
-            }
-        }));
-        addTrackHandler(BlockTrackHandler.new("phase", BlockBuildTracker, Blocks.phaseWeaver, false, {
-            "customText": function(team, block, tile) {
-                return "phase prod " + toBlockEmoji(block) + "" + toBlockEmoji(Items.phaseFabric);
-            }
-        }));
-        addTrackHandler(BlockTrackHandler.new("surge", BlockBuildTracker, Blocks.surgeSmelter, false, {
-            "customText": function(team, block, tile) {
-                return "surge prod " + toBlockEmoji(block) + "" + toBlockEmoji(Items.surgeAlloy);
-            }
-        }));
-        addTrackHandler(BlockTrackHandler.new("pyratite", BlockBuildTracker, Blocks.pyratiteMixer, false, {
-            "customText": function(team, block, tile) {
-                return "pyratite prod " + toBlockEmoji(block) + "" + toBlockEmoji(Items.pyratite);
-            }
-        }));
-        addTrackHandler(BlockTrackHandler.new("blast", BlockBuildTracker, Blocks.blastMixer, false, {
-            "customText": function(team, block, tile) {
-                return "blast prod " + toBlockEmoji(block) + "" + toBlockEmoji(Items.blastCompound);
-            }
-        }));
-        addTrackHandler(BlockTrackHandler.new("foreshadow", BlockBuildTracker, Blocks.foreshadow, false, {}));
-
-        addTrackHandler(BlockTrackHandler.new("siliconArcFurnace", BlockBuildTracker, Blocks.siliconArcFurnace, false, {
-            "customText": function(team, block, tile) {
-                return "silicon prod " + toBlockEmoji(block) + "" + toBlockEmoji(Items.silicon);
-            }
-        }));
-        addTrackHandler(BlockTrackHandler.new("carbideCrucible", BlockBuildTracker, Blocks.carbideCrucible, false, {
-            "customText": function(team, block, tile) {
-                return "carbide prod " + toBlockEmoji(block) + "" + toBlockEmoji(Items.carbide);
-            }
-        }));
-        addTrackHandler(BlockTrackHandler.new("surgeCrucible", BlockBuildTracker, Blocks.surgeCrucible, false, {
-            "customText": function(team, block, tile) {
-                return "surge prod " + toBlockEmoji(block) + "" + toBlockEmoji(Items.surgeAlloy);
-            }
-        }));
-        addTrackHandler(BlockTrackHandler.new("phaseSynthesizer", BlockBuildTracker, Blocks.phaseSynthesizer, false, {
-            "customText": function(team, block, tile) {
-                return "phase prod " + toBlockEmoji(block) + "" + toBlockEmoji(Items.phaseFabric);
-            }
-        }));
-        addTrackHandler(BlockTrackHandler.new("cyanogenSynthesizer", BlockBuildTracker, Blocks.cyanogenSynthesizer, false, {
-            "customText": function(team, block, tile) {
-                return "cyanogen prod " + toBlockEmoji(block);
-            }
-        }));
-        addTrackHandler(BlockTrackHandler.new("electrolyzer", BlockBuildTracker, Blocks.electrolyzer, false, {
-            "customText": function(team, block, tile) {
-                return "electrolysis " + toBlockEmoji(block);
-            }
-        }));
-        addTrackHandler(BlockTrackHandler.new("slagCentrifuge", BlockBuildTracker, Blocks.slagCentrifuge, false, {
-            "customText": function(team, block, tile) {
-                return "slag centrifuge " + toBlockEmoji(block);
-            }
-        }));
-
-        var erekirDrillEvent = {
-            "customText": function(team, block, tile) {
-                var build = tile.build;
-                var item = build ? build.dominantItem : null;
-                var resName = item ? item.localizedName : "ore";
-                return resName + " mining " + toBlockEmoji(block) + (item ? "" + toBlockEmoji(item) : "");
-            }
-        };
-        addTrackHandler(BlockTrackHandler.new("plasmaBore", BlockBuildTracker, Blocks.plasmaBore, false, erekirDrillEvent));
-        addTrackHandler(BlockTrackHandler.new("largePlasmaBore", BlockBuildTracker, Blocks.largePlasmaBore, false, erekirDrillEvent));
-        addTrackHandler(BlockTrackHandler.new("impactDrill", BlockBuildTracker, Blocks.impactDrill, false, erekirDrillEvent));
-        addTrackHandler(BlockTrackHandler.new("eruptionDrill", BlockBuildTracker, Blocks.eruptionDrill, false, erekirDrillEvent));
-
-        Vars.content.blocks().each((e2) => {
-            if (e2 instanceof UnitFactory) {
-                addTrackHandler(BlockTrackHandler.new(e2.name, BlockBuildTracker, e2, false, {}));
-            }
-            if (e2 instanceof Reconstructor) {
-                addTrackHandler(BlockTrackHandler.new(e2.name, BlockBuildTracker, e2, false, {}));
-            }
-        });
-
-        var drillEvent = {
-            "customText": function(team, block, tile) {
-                var build = tile.build;
-                var item = build ? build.dominantItem : null;
-                var resName = item ? item.localizedName : "ore";
-                return resName + " mining " + toBlockEmoji(block) + (item ? "" + toBlockEmoji(item) : "");
-            }
-        };
-        addTrackHandler(BlockTrackHandler.new("pneumaticDrill", BlockBuildTracker, Blocks.pneumaticDrill, false, drillEvent));
-        addTrackHandler(BlockTrackHandler.new("laserDrill", BlockBuildTracker, Blocks.laserDrill, false, drillEvent));
-        addTrackHandler(BlockTrackHandler.new("blastDrill", BlockBuildTracker, Blocks.blastDrill, false, drillEvent));
+        registerTrackHandlers();
 
         try {
             Vars.mods.getScripts().runConsole("this.alert = this.global.alerts.onChat");
@@ -789,6 +815,17 @@ function iterateOver(iterator, func) {
     }
 }
 
+// Seq.select() allocates a new backing array. Doing that unconditionally three times
+// per frame churns ~180 short-lived objects a second and shows up as GC hitches during
+// heavy battles. Scan first, and only rebuild when something actually needs dropping.
+function pruneSeq(seq, keep) {
+    var len = seq.size;
+    for (var i = 0; i < len; i++) {
+        if (!keep.get(seq.get(i))) return seq.select(keep);
+    }
+    return seq;
+}
+
 
 // --- ammo sprite replacement (v1.2.3) ---
 // Swaps BasicBulletType sprites for baked textures: hollow triangle (single-target),
@@ -798,10 +835,8 @@ function iterateOver(iterator, func) {
 
 var ammoApplied = false;
 var ammoBuilt = false;
-var ammoOrigSaved = false;
 var triRegion = null;
 var ringCache = {};
-var ammoSaved = [];
 var ammoOrigins = {};  // key -> {front, back, trail} original regions
 var turretSmokeCache = {};  // block name -> {smoke, shoot} original effects
 var ammoStatus = "not applied yet";
@@ -912,7 +947,6 @@ function applyAmmoSprites() {
     ensureAmmoTextures();
     if (!ammoBuilt) { pvplog("ammo: bake failed"); return; }
     try {
-        var BBT = Packages.mindustry.entities.bullet.BasicBulletType;
         var list = Vars.content.bullets();
         var swapped = 0, skipped = 0;
         pvplog("ammo: bullets=" + list.size);
@@ -1044,30 +1078,6 @@ function applyAmmoSprites() {
     }
 }
 
-function restoreAmmoSprites() {
-    if (!ammoApplied) return;
-    try {
-        var BBT = Packages.mindustry.entities.bullet.BasicBulletType;
-        for (var i = 0; i < ammoSaved.length; i++) {
-            var r = ammoSaved[i];
-            try {
-                var cls = java.lang.Class.forName("mindustry.entities.bullet.BasicBulletType");
-                var ff = cls.getDeclaredField("frontRegion");
-                ff.setAccessible(true);
-                ff.set(r[0], r[1]);
-            } catch (e) {}
-            try {
-                var cls2 = java.lang.Class.forName("mindustry.entities.bullet.BasicBulletType");
-                var bf = cls2.getDeclaredField("backRegion");
-                bf.setAccessible(true);
-                if (r[2] != null) bf.set(r[0], r[2]);
-            } catch (e2) {}
-        }
-    } catch (e) {}
-    ammoSaved = [];
-    ammoApplied = false;
-}
-
 function syncAmmoSprites() {
     if (showTurretDmg) {
         applyAmmoSprites();
@@ -1162,8 +1172,8 @@ try { syncAmmoSprites(); } catch (e) {}
 
 Events.run(Trigger.update, () => {
     try {
-    pips = pips.select((t) => { return t.life < t.maxlife; });
-    anticommandspam = anticommandspam.select((t) => { return t.timer >= 0; });
+    pips = pruneSeq(pips, (t) => { return t.life < t.maxlife; });
+    anticommandspam = pruneSeq(anticommandspam, (t) => { return t.timer >= 0; });
     anticommandspam.each(t => {
         t.timer += Time.delta;
         if (t.timer > 600) {
@@ -1211,9 +1221,14 @@ Events.run(Trigger.update, () => {
 
 
     if (glitch) {
-        let mv = Vars.control.input.movement;
-        Vars.player.unit().vel.x = mv.x * 10;
-        Vars.player.unit().vel.y = mv.y * 10;
+        // Was unguarded: enabling /glitch while not in a unit threw every frame and
+        // aborted the rest of the update loop (power bar, pip pruning).
+        var gu = Vars.player ? Vars.player.unit() : null;
+        if (gu) {
+            let mv = Vars.control.input.movement;
+            gu.vel.x = mv.x * 10;
+            gu.vel.y = mv.y * 10;
+        }
     }
     delayglitch++;
 
@@ -1260,8 +1275,6 @@ Events.on(EventType.WorldLoadEvent, e => {
         pips.clear();
         // Reset ammo after content reload
         ammoApplied = false;
-        ammoOrigSaved = false;
-        ammoSaved = [];
         ammoOrigins = {};
         if (showTurretDmg) {
             try { applyAmmoSprites(); } catch (e0) {}
@@ -1289,7 +1302,7 @@ function update() {
     trackers.each((t) => {
         t.updateTrack();
     });
-    trackers = trackers.select((t) => { return !t.done; });
+    trackers = pruneSeq(trackers, (t) => { return !t.done; });
 }
 
 var wasCleared = false;
@@ -1299,6 +1312,7 @@ function clear() {
     anticommandspam.clear();
     eventid = 0;
     queue.clear();
+    queueDropped = 0;
     trackers.clear();
     allTeams.clear();
     if (teams) {
@@ -1310,126 +1324,7 @@ function clear() {
     teams = null;
     blocktrackhandle = null;
 
-    addTrackHandler(BlockTrackHandler.new("graphite", BlockBuildTracker, Blocks.graphitePress, false, {
-        "customText": function(team, block, tile) {
-            return "graphite prod " + toBlockEmoji(block) + "" + toBlockEmoji(Items.graphite);
-        }
-    }));
-    addTrackHandler(BlockTrackHandler.new("silicon", BlockBuildTracker, Blocks.siliconSmelter, false, {
-        "customText": function(team, block, tile) {
-            return "silicon prod " + toBlockEmoji(block) + "" + toBlockEmoji(Items.silicon);
-        }
-    }));
-    addTrackHandler(BlockTrackHandler.new("siliconCrucible", BlockBuildTracker, Blocks.siliconCrucible, false, {
-        "customText": function(team, block, tile) {
-            return "mass silicon prod " + toBlockEmoji(block) + "" + toBlockEmoji(Items.silicon);
-        }
-    }));
-    addTrackHandler(BlockTrackHandler.new("kiln", BlockBuildTracker, Blocks.kiln, false, {
-        "customText": function(team, block, tile) {
-            return "metaglass prod " + toBlockEmoji(block) + "" + toBlockEmoji(Items.metaglass);
-        }
-    }));
-    addTrackHandler(BlockTrackHandler.new("plast", BlockBuildTracker, Blocks.plastaniumCompressor, false, {
-        "customText": function(team, block, tile) {
-            return "plastanium prod " + toBlockEmoji(block) + "" + toBlockEmoji(Items.plastanium);
-        }
-    }));
-    addTrackHandler(BlockTrackHandler.new("phase", BlockBuildTracker, Blocks.phaseWeaver, false, {
-        "customText": function(team, block, tile) {
-            return "phase prod " + toBlockEmoji(block) + "" + toBlockEmoji(Items.phaseFabric);
-        }
-    }));
-    addTrackHandler(BlockTrackHandler.new("surge", BlockBuildTracker, Blocks.surgeSmelter, false, {
-        "customText": function(team, block, tile) {
-            return "surge prod " + toBlockEmoji(block) + "" + toBlockEmoji(Items.surgeAlloy);
-        }
-    }));
-    addTrackHandler(BlockTrackHandler.new("pyratite", BlockBuildTracker, Blocks.pyratiteMixer, false, {
-        "customText": function(team, block, tile) {
-            return "pyratite prod " + toBlockEmoji(block) + "" + toBlockEmoji(Items.pyratite);
-        }
-    }));
-    addTrackHandler(BlockTrackHandler.new("blast", BlockBuildTracker, Blocks.blastMixer, false, {
-        "customText": function(team, block, tile) {
-            return "blast prod " + toBlockEmoji(block) + "" + toBlockEmoji(Items.blastCompound);
-        }
-    }));
-    addTrackHandler(BlockTrackHandler.new("foreshadow", BlockBuildTracker, Blocks.foreshadow, false, {}));
-
-    addTrackHandler(BlockTrackHandler.new("siliconArcFurnace", BlockBuildTracker, Blocks.siliconArcFurnace, false, {
-        "customText": function(team, block, tile) {
-            return "silicon prod " + toBlockEmoji(block) + "" + toBlockEmoji(Items.silicon);
-        }
-    }));
-    addTrackHandler(BlockTrackHandler.new("carbideCrucible", BlockBuildTracker, Blocks.carbideCrucible, false, {
-        "customText": function(team, block, tile) {
-            return "carbide prod " + toBlockEmoji(block) + "" + toBlockEmoji(Items.carbide);
-        }
-    }));
-    addTrackHandler(BlockTrackHandler.new("surgeCrucible", BlockBuildTracker, Blocks.surgeCrucible, false, {
-        "customText": function(team, block, tile) {
-            return "surge prod " + toBlockEmoji(block) + "" + toBlockEmoji(Items.surgeAlloy);
-        }
-    }));
-    addTrackHandler(BlockTrackHandler.new("phaseSynthesizer", BlockBuildTracker, Blocks.phaseSynthesizer, false, {
-        "customText": function(team, block, tile) {
-            return "phase prod " + toBlockEmoji(block) + "" + toBlockEmoji(Items.phaseFabric);
-        }
-    }));
-    addTrackHandler(BlockTrackHandler.new("cyanogenSynthesizer", BlockBuildTracker, Blocks.cyanogenSynthesizer, false, {
-        "customText": function(team, block, tile) {
-            return "cyanogen prod " + toBlockEmoji(block);
-        }
-    }));
-    addTrackHandler(BlockTrackHandler.new("electrolyzer", BlockBuildTracker, Blocks.electrolyzer, false, {
-        "customText": function(team, block, tile) {
-            return "electrolysis " + toBlockEmoji(block);
-        }
-    }));
-    addTrackHandler(BlockTrackHandler.new("slagCentrifuge", BlockBuildTracker, Blocks.slagCentrifuge, false, {
-        "customText": function(team, block, tile) {
-            return "slag centrifuge " + toBlockEmoji(block);
-        }
-    }));
-
-    var erekirDrillEvent = {
-        "customText": function(team, block, tile) {
-            var build = tile.build;
-            var item = build ? build.dominantItem : null;
-            var resName = item ? item.localizedName : "ore";
-            return resName + " mining " + toBlockEmoji(block) + (item ? "" + toBlockEmoji(item) : "");
-        }
-    };
-    addTrackHandler(BlockTrackHandler.new("plasmaBore", BlockBuildTracker, Blocks.plasmaBore, false, erekirDrillEvent));
-    addTrackHandler(BlockTrackHandler.new("largePlasmaBore", BlockBuildTracker, Blocks.largePlasmaBore, false, erekirDrillEvent));
-    addTrackHandler(BlockTrackHandler.new("impactDrill", BlockBuildTracker, Blocks.impactDrill, false, erekirDrillEvent));
-    addTrackHandler(BlockTrackHandler.new("eruptionDrill", BlockBuildTracker, Blocks.eruptionDrill, false, erekirDrillEvent));
-
-    Vars.content.blocks().each((e2) => {
-        if (e2 instanceof UnitFactory) {
-            addTrackHandler(BlockTrackHandler.new(e2.name, BlockBuildTracker, e2, false, {}));
-        }
-        if (e2 instanceof Reconstructor) {
-            addTrackHandler(BlockTrackHandler.new(e2.name, BlockBuildTracker, e2, false, {
-                "customText": function(team, block, tile) {
-                    return "can now make Tier-" + Math.round((block.size + 1) * 0.5) + " units" + toBlockEmoji(block);
-                }
-            }));
-        }
-    });
-
-    var drillEvent = {
-        "customText": function(team, block, tile) {
-            var build = tile.build;
-            var item = build ? build.dominantItem : null;
-            var resName = item ? item.localizedName : "ore";
-            return resName + " mining " + toBlockEmoji(block) + (item ? "" + toBlockEmoji(item) : "");
-        }
-    };
-    addTrackHandler(BlockTrackHandler.new("pneumaticDrill", BlockBuildTracker, Blocks.pneumaticDrill, false, drillEvent));
-    addTrackHandler(BlockTrackHandler.new("laserDrill", BlockBuildTracker, Blocks.laserDrill, false, drillEvent));
-    addTrackHandler(BlockTrackHandler.new("blastDrill", BlockBuildTracker, Blocks.blastDrill, false, drillEvent));
+    registerTrackHandlers();
 
     wasCleared = true;
 
@@ -1483,7 +1378,8 @@ const onChat = function(sender, message) {
         var cmd = all[0];
         switch (cmd) {
             case "help":
-                print("[red]PvP-Alerts [white]commands: [green]enable, disable, wipe, items, units, prefix, turretdmg, ammo");
+                print("[red]PvP-Alerts [white]commands: [green]enable, disable, wipe, items, units, prefix, turretdmg, ammo, debug");
+                print("[gray]queue: [white]" + queue.size + "/" + QUEUE_MAX + (queueDropped > 0 ? " [red](" + queueDropped + " dropped)" : ""));
                 break;
             case "enable":
                 enabled = true;

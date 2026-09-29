@@ -27,3 +27,13 @@ Buttons (bottom-left bar):
 
 Chat commands:
 - help, enable, disable, wipe, items, units, prefix, turretdmg, ammo, debug
+
+Development:
+- scripts/main.js is the only file with real logic; scripts/jotfunction.js holds the
+  AFK mining AI and the enemy mouse-tracer overlay.
+- The tracked-block alert table lives in exactly one place, registerTrackHandlers().
+  Do not inline it back into ClientLoadEvent or clear() — that duplication is what
+  previously let tracker coverage drift between map loads.
+- Changes are validated by ~/maintenance/pvpvalidate.js, which executes the mod
+  against stubbed Mindustry globals and diffs the tracked-block list against
+  ~/maintenance/pvp-baseline.json. Run it before committing.
