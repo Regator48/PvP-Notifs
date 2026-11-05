@@ -673,6 +673,12 @@ Events.on(EventType.ClientLoadEvent,
         dmgBtn.setChecked(showTurretDmg);
         dmgBtnRef = dmgBtn;
 
+        var tcpBtn = t.button(Icon.link, Styles.clearTogglei, run(() => {
+            tcpSet(!tcpActive);
+        })).width(46).height(46).name("tcp").tooltip("force TCP: sends all client->server packets via TCP instead of UDP (can fix packet loss / error snapshots)").get();
+        tcpBtn.setChecked(tcpActive);
+        tcpBtnRef = tcpBtn;
+
         var updateLongFired = false;
         var updateTimer = null;
         var updateBtn = t.button(Icon.settings, style, run(() => {})).width(46).height(46).name("update").tooltip("check for updates (hold / right-click to choose branch)").get();
@@ -742,6 +748,9 @@ Events.on(EventType.ClientLoadEvent,
                 }
             }
         }));
+
+        // Auto-enable TCP forcing if it was saved on (silent — no chat spam on boot)
+        try { if (Core.settings.getBool("pvpnotifs-tcp", false)) tcpSet(true, false); } catch (eTcp0) {}
         });
     }));
 
@@ -1187,6 +1196,117 @@ try { showTurretDmg = Core.settings.getBool("pvpnotifs-showturretdmg", false); }
 var dmgBtnRef = null;
 try { syncAmmoSprites(); } catch (e) {}
 
+// ==================== TCP FORCER (client-side) ====================
+// Routes ALL client->server packets through TCP instead of UDP — the same
+// approach as the standalone tcp-mod jar: wrap Net.provider in a
+// java.lang.reflect.Proxy that intercepts sendClient(object, reliable) and
+// sends via KryoNet's TCP channel. Works on vanilla servers because KryoNet
+// always opens both connections. Server->client traffic is untouched.
+// NOTE: do NOT run this alongside the tcp-mod jar with both enabled — two
+// proxies would intercept the same packets and duplicate every send.
+var tcpActive = false;
+var tcpOriginalProvider = null;
+var tcpProxy = null;
+var tcpBtnRef = null;
+var tcpStatus = "off";
+
+function tcpSave() {
+    try { Core.settings.put("pvpnotifs-tcp", tcpActive); } catch (e0) {}
+}
+
+// Returns [providerField, provider, kryoClient], or null (tcpStatus explains).
+function tcpReflect() {
+    try {
+        var providerField = findField(Vars.net, "provider");
+        if (providerField == null) { tcpStatus = "no Net.provider field"; return null; }
+        var provider = providerField.get(Vars.net);
+        if (provider == null) { tcpStatus = "net provider is null"; return null; }
+        var clientField = findField(provider, "client");
+        if (clientField == null) { tcpStatus = "no client field (custom net provider?)"; return null; }
+        var client = clientField.get(provider);
+        if (client == null) { tcpStatus = "kryo client is null"; return null; }
+        return [providerField, provider, client];
+    } catch (e0) {
+        tcpStatus = "reflect error: " + e0;
+        return null;
+    }
+}
+
+function tcpEnable() {
+    if (tcpActive) return true;
+    var parts = tcpReflect();
+    if (parts == null) { pvplog("tcp enable failed: " + tcpStatus); return false; }
+    var providerField = parts[0], provider = parts[1], client = parts[2];
+    try {
+        var iface = java.lang.Class.forName("mindustry.net.Net$NetProvider");
+        var handler = new java.lang.reflect.InvocationHandler({
+            invoke: function(proxy, method, args) {
+                // Reroute only sendClient(object, reliable); delegate the rest.
+                if (method.getName() == "sendClient" && args != null && args.length == 2) {
+                    try {
+                        client.sendTCP(args[0]);
+                        return null;
+                    } catch (eSend) {
+                        // TCP send failed: fall back to the original routing.
+                        return method.invoke(provider, args);
+                    }
+                }
+                return method.invoke(provider, args);
+            }
+        });
+        var ifaces = java.lang.reflect.Array.newInstance(iface, 1);
+        ifaces[0] = iface;
+        tcpProxy = java.lang.reflect.Proxy.newProxyInstance(iface.getClassLoader(), ifaces, handler);
+        tcpOriginalProvider = provider;
+        providerField.set(Vars.net, tcpProxy);
+        tcpActive = true;
+        tcpStatus = "active";
+        Log.info("PvP-Alerts: TCP forcing enabled — all client packets sent via TCP");
+        return true;
+    } catch (e1) {
+        tcpStatus = "enable error: " + e1;
+        pvplog("tcp enable error: " + e1);
+        return false;
+    }
+}
+
+function tcpDisable() {
+    if (!tcpActive && tcpProxy == null) { tcpActive = false; tcpStatus = "off"; return true; }
+    try {
+        var providerField = findField(Vars.net, "provider");
+        if (providerField != null && providerField.get(Vars.net) == tcpProxy) {
+            providerField.set(Vars.net, tcpOriginalProvider);
+        }
+        tcpProxy = null;
+        tcpOriginalProvider = null;
+        tcpActive = false;
+        tcpStatus = "off";
+        Log.info("PvP-Alerts: TCP forcing disabled — original provider restored");
+        return true;
+    } catch (e0) {
+        tcpStatus = "restore error: " + e0;
+        pvplog("tcp disable error: " + e0);
+        return false;
+    }
+}
+
+// on: desired state. announce: show a chat message (default true).
+function tcpSet(on, announce) {
+    if (announce === undefined) announce = true;
+    var ok = on ? tcpEnable() : tcpDisable();
+    if (on && !ok) tcpActive = false;
+    tcpSave();
+    try { if (tcpBtnRef != null) tcpBtnRef.setChecked(tcpActive); } catch (e0) {}
+    if (announce) {
+        var msg;
+        if (on && !ok) msg = "[red]PvP-Alerts: [white]TCP forcing unavailable [gray](" + tcpStatus + ")";
+        else if (on) msg = "[red]PvP-Alerts: [white]TCP forcing [green]ON[white] — all packets via TCP";
+        else msg = "[red]PvP-Alerts: [white]TCP forcing [gray]OFF[white] — normal UDP/TCP routing";
+        try { Vars.ui.chatfrag.addMessage(msg); } catch (e1) { queue.add(msg); }
+    }
+    return ok;
+}
+
 // --- per-frame helpers ---
 // These all run inside Events.run(Trigger.update) on every frame, so they are
 // declared once at load time. Declared inline they were re-created 60+ times a
@@ -1412,7 +1532,7 @@ const onChat = function(sender, message) {
         var cmd = all[0];
         switch (cmd) {
             case "help":
-                print("[red]PvP-Alerts [white]commands: [green]enable, disable, wipe, items, units, prefix, turretdmg, ammo, debug");
+                print("[red]PvP-Alerts [white]commands: [green]enable, disable, wipe, items, units, prefix, turretdmg, ammo, tcp, debug");
                 print("[gray]queue: [white]" + queue.size + "/" + QUEUE_MAX + (queueDropped > 0 ? " [red](" + queueDropped + " dropped)" : ""));
                 break;
             case "enable":
@@ -1448,6 +1568,9 @@ const onChat = function(sender, message) {
                 break;
             case "glitch":
                 glitch = !glitch;
+                break;
+            case "tcp":
+                tcpSet(!tcpActive);
                 break;
             case "units":
 
@@ -1536,6 +1659,7 @@ const onChat = function(sender, message) {
 };
 
 global.alerts.onChat = function(msg) { onChat(Vars.player ? Vars.player.name : "local", msg); };
+global.alerts.tcp = function(onoff) { tcpSet(onoff === undefined ? !tcpActive : !!onoff); };
 
 function rebuildTechSummary(t) {
     t.clear();
