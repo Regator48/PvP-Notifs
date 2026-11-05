@@ -1965,8 +1965,9 @@ function findModFile() {
 
     try {
         var list = null;
-        try { list = Vars.mods.orderedItems(); } catch (e1) {}
-        if (list == null) { try { list = Vars.mods.all; } catch (e2) {} }
+        try { list = Vars.mods.orderedMods(); } catch (e1) {}
+        if (list == null) { try { list = Vars.mods.orderedItems(); } catch (e2) {} }
+        if (list == null) { try { list = Vars.mods.all; } catch (e3) {} }
         if (list != null) {
             for (var i = 0; i < list.size; i++) {
                 var m = list.get(i);
@@ -2028,8 +2029,9 @@ function downloadAndReplace(zipUrlOverride) {
                 diag += " | loadedMods=";
                 try {
                     var all = null;
-                    try { all = Vars.mods.orderedItems(); } catch (e4) {}
-                    if (all == null) { try { all = Vars.mods.all; } catch (e5) {} }
+                    try { all = Vars.mods.orderedMods(); } catch (e4) {}
+                    if (all == null) { try { all = Vars.mods.orderedItems(); } catch (e5) {} }
+                    if (all == null) { try { all = Vars.mods.all; } catch (e6) {} }
                     if (all != null) {
                         for (var li = 0; li < all.size; li++) {
                             var mm = all.get(li);
