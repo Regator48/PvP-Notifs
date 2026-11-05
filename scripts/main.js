@@ -1719,11 +1719,19 @@ function jsonField(json, key) {
     var idx = json.indexOf("\"" + key + "\"");
     if (idx < 0) return null;
     var colon = json.indexOf(":", idx + key.length + 2);
-    var q1 = json.indexOf("\"", colon + 1);
-    if (q1 < 0) return null;
-    var q2 = json.indexOf("\"", q1 + 1);
-    if (q2 < 0) return null;
-    return json.substring(q1 + 1, q2);
+    if (colon < 0) return null;
+    var i = colon + 1;
+    while (i < json.length && " \t\r\n".indexOf(json.charAt(i)) >= 0) i++;
+    if (i >= json.length) return null;
+    if (json.charAt(i) == "\"") {
+        var q2 = json.indexOf("\"", i + 1);
+        if (q2 < 0) return null;
+        return json.substring(i + 1, q2);
+    }
+    // bare value (number/boolean): read until a delimiter
+    var end = i;
+    while (end < json.length && " \t\r\n,}".indexOf(json.charAt(end)) < 0) end++;
+    return json.substring(i, end);
 }
 
 function getRepo() { return "Regator48/PvP-Notifs"; }
@@ -2156,6 +2164,60 @@ function isNewerVersion(remote, local) {
     return ("" + remote) !== ("" + local);
 }
 
+// Builds and shows the update-check dialog.
+// minGameVersion: parsed from the picked release's mod.json, or null when
+// unknown (probe failed / not needed). When the release requires a newer game
+// build than the running one, the in-game download is withheld — installing it
+// would just get the mod auto-disabled by the game.
+function showUpdateDialog(currentVersion, repo, beta, pick, assetUrl, minGameVersion) {
+    var d = new BaseDialog(beta ? "Beta Update Check" : "Update Check");
+    d.addCloseButton();
+    d.cont.add("Channel: [white]" + (beta ? "beta (pre-releases)" : "stable")).pad(5).row();
+    d.cont.add("Installed: [white]v" + currentVersion).pad(5).row();
+    var gameBuild = -1;
+    try { gameBuild = Version.build; } catch (e0) {}
+    if (gameBuild >= 0) d.cont.add("Game: [white]build " + gameBuild).pad(5).row();
+    if (pick == null) {
+        d.cont.add("[red]No matching release found.").pad(5).row();
+        d.cont.button("Open Releases", function() {
+            Core.app.openURI("https://github.com/" + repo + "/releases");
+            d.hide();
+        }).width(160).color(Color.green);
+    } else {
+        var tag = "" + (pick.tag_name || "");
+        var latestV = tag.replace(/^v/i, "");
+        d.cont.add("Latest " + (beta ? "build" : "stable") + ": [white]" + tag + (pick.prerelease ? " [orange](beta)" : "")).pad(5).row();
+        if (isNewerVersion(latestV, currentVersion)) {
+            var minV = -1;
+            if (minGameVersion != null) {
+                try { minV = parseInt("" + minGameVersion, 10); } catch (e1) { minV = -1; }
+                if (isNaN(minV)) minV = -1;
+            }
+            if (minV >= 0 && gameBuild >= 0 && gameBuild < minV) {
+                d.cont.add("[scarlet]Requires game build " + minV + " (you have " + gameBuild + ").").pad(5).row();
+                d.cont.add("[gray]Update the game first, or install the zip manually from the releases page.").pad(5).row();
+                d.cont.button("Open Releases", function() {
+                    Core.app.openURI("https://github.com/" + repo + "/releases");
+                    d.hide();
+                }).width(160).color(Color.orange);
+            } else if (assetUrl != null) {
+                d.cont.add("[yellow]Update available.").pad(5).row();
+                d.cont.button("Download & Replace", function() {
+                    d.hide();
+                    downloadAndReplace(assetUrl);
+                }).width(180).color(Color.green);
+            } else {
+                d.cont.add("[yellow]Update available, but the release has no PvP-Alerts-*.zip asset.").pad(5).row();
+            }
+        } else {
+            d.cont.add("You have the latest " + (beta ? "beta build." : "version."));
+            d.cont.row();
+        }
+    }
+    d.cont.button("Skip", function() { d.hide(); }).width(100).color(Color.gray);
+    d.show();
+}
+
 function checkForUpdates() {
     var currentVersion = localModVersion();
 
@@ -2176,47 +2238,36 @@ function checkForUpdates() {
                 if (!r || r.draft) continue;
                 if (beta || !r.prerelease) { pick = r; break; }
             }
-            Core.app.post(function() {
-                var d = new BaseDialog(beta ? "Beta Update Check" : "Update Check");
-                d.addCloseButton();
-                d.cont.add("Channel: [white]" + (beta ? "beta (pre-releases)" : "stable")).pad(5).row();
-                d.cont.add("Installed: [white]v" + currentVersion).pad(5).row();
-                if (pick == null) {
-                    d.cont.add("[red]No matching release found.").pad(5).row();
-                    d.cont.button("Open Releases", function() {
-                        Core.app.openURI("https://github.com/" + repo + "/releases");
-                        d.hide();
-                    }).width(160).color(Color.green);
-                } else {
-                    var tag = "" + (pick.tag_name || "");
-                    var latestV = tag.replace(/^v/i, "");
-                    var assetUrl = null;
-                    try {
-                        var assets = pick.assets || [];
-                        for (var a = 0; a < assets.length; a++) {
-                            var an = "" + assets[a].name;
-                            if (/^PvP-Alerts.*\.zip$/i.test(an)) { assetUrl = assets[a].browser_download_url; break; }
-                        }
-                    } catch (e2) {}
-                    d.cont.add("Latest " + (beta ? "build" : "stable") + ": [white]" + tag + (pick.prerelease ? " [orange](beta)" : "")).pad(5).row();
-                    if (isNewerVersion(latestV, currentVersion)) {
-                        if (assetUrl != null) {
-                            d.cont.add("[yellow]Update available.").pad(5).row();
-                            d.cont.button("Download & Replace", function() {
-                                d.hide();
-                                downloadAndReplace(assetUrl);
-                            }).width(180).color(Color.green);
-                        } else {
-                            d.cont.add("[yellow]Update available, but the release has no PvP-Alerts-*.zip asset.").pad(5).row();
-                        }
-                    } else {
-                        d.cont.add("You have the latest " + (beta ? "beta build." : "version."));
-                        d.cont.row();
+            // Compute tag/assetUrl from the parsed payload, then — if an update is
+            // actually available — probe that release's mod.json for minGameVersion
+            // so an update targeting a newer game build isn't offered in-game.
+            var tag = pick != null ? "" + (pick.tag_name || "") : "";
+            var latestV = tag.replace(/^v/i, "");
+            var assetUrl = null;
+            if (pick != null) {
+                try {
+                    var assets = pick.assets || [];
+                    for (var a = 0; a < assets.length; a++) {
+                        var an = "" + assets[a].name;
+                        if (/^PvP-Alerts.*\.zip$/i.test(an)) { assetUrl = assets[a].browser_download_url; break; }
                     }
-                }
-                d.cont.button("Skip", function() { d.hide(); }).width(100).color(Color.gray);
-                d.show();
-            });
+                } catch (e2) {}
+            }
+            if (pick != null && isNewerVersion(latestV, currentVersion)) {
+                var g0 = getGitee();
+                var tagRaw = "https://raw.githubusercontent.com/" + repo + "/" + tag + "/mod.json";
+                var giteeTagRaw = g0.length > 0 ? "https://gitee.com/" + g0 + "/raw/" + tag + "/mod.json" : "";
+                httpGetFallback(tagRaw, giteeTagRaw, function(resp) {
+                    var minV = null;
+                    try { minV = jsonField(resp.getResultAsString(), "minGameVersion"); } catch (e4) {}
+                    Core.app.post(function() { showUpdateDialog(currentVersion, repo, beta, pick, assetUrl, minV); });
+                }, function(e4) {
+                    // probe failed -> unknown compatibility, behave as before
+                    Core.app.post(function() { showUpdateDialog(currentVersion, repo, beta, pick, assetUrl, null); });
+                });
+            } else {
+                Core.app.post(function() { showUpdateDialog(currentVersion, repo, beta, pick, assetUrl, null); });
+            }
         } catch (err) {
             Log.err("Releases parse failed", err);
             Vars.ui.showErrorMessage("Could not read releases info.");
