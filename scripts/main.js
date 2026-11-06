@@ -2066,13 +2066,40 @@ function zipModName(fi, fieldName) {
 // Reads the installed mod's version robustly: Mods API -> mod.json on disk.
 function localModVersion() {
     var v = "";
+    // Exact lookups first. NOTE: Mindustry stores LoadedMod.name lowercased
+    // ("PvP-Alerts" -> "pvp-alerts") and getMod() is case-sensitive, so query
+    // both spellings.
     try {
         var m = Vars.mods.getMod("PvP-Alerts");
+        if (m == null) { try { m = Vars.mods.getMod("pvp-alerts"); } catch (e0) {} }
         if (m) {
             try { if (m.meta && m.meta.version) v = "" + m.meta.version; } catch (e1) {}
             if (!v) { try { if (m.version) v = "" + m.version; } catch (e2) {} }
         }
     } catch (e) {}
+    // 2) Scan loaded mods by name prefix and read the version straight from the
+    // meta — no file I/O, works regardless of how the mod is installed.
+    if (!v) {
+        try {
+            var list = null;
+            try { list = Vars.mods.orderedMods(); } catch (e3) {}
+            if (list == null) { try { list = Vars.mods.orderedItems(); } catch (e4) {} }
+            if (list == null) { try { list = Vars.mods.all; } catch (e5) {} }
+            if (list != null) {
+                for (var li = 0; li < list.size; li++) {
+                    var mm = list.get(li);
+                    if (!mm) continue;
+                    var nm = (mm.name != null) ? ("" + mm.name).toLowerCase() : "";
+                    if (nm.indexOf("pvp") >= 0) {
+                        try { if (mm.meta && mm.meta.version) v = "" + mm.meta.version; } catch (e6) {}
+                        if (!v) { try { if (mm.version) v = "" + mm.version; } catch (e7) {} }
+                        break;
+                    }
+                }
+            }
+        } catch (e) {}
+    }
+    // 3) Last resort: read it back from the mod file on disk.
     if (!v) {
         try {
             var f = findModFile();
@@ -2084,7 +2111,7 @@ function localModVersion() {
                     v = zipModName(f, "version") || "";
                 }
             }
-        } catch (e3) {}
+        } catch (e8) {}
     }
     return v || "0.0.0";
 }
@@ -2092,6 +2119,7 @@ function localModVersion() {
 function findModFile() {
     try {
         var m0 = Vars.mods.getMod("PvP-Alerts");
+        if (m0 == null) { try { m0 = Vars.mods.getMod("pvp-alerts"); } catch (eM) {} }
         if (m0 && m0.file && m0.file.exists()) return m0.file;
     } catch (e0) {}
 
@@ -2301,6 +2329,15 @@ function showUpdateDialog(currentVersion, repo, beta, pick, assetUrl, minGameVer
     var gameBuild = -1;
     try { gameBuild = Version.build; } catch (e0) {}
     if (gameBuild >= 0) d.cont.add("Game: [white]build " + gameBuild).pad(5).row();
+    if ("" + currentVersion == "0.0.0") {
+        // version lookup failed — surface what we know so a screenshot diagnoses it
+        var verDiag = "no loaded mod matching 'pvp'";
+        try {
+            var fm = findModFile();
+            if (fm != null) verDiag = "mod file: " + fm.path() + (fm.isDirectory() ? " (folder)" : " (zip)");
+        } catch (eD) { verDiag = "findModFile error: " + eD; }
+        d.cont.add("[gray]version lookup failed; " + verDiag).pad(5).row();
+    }
     if (pick == null) {
         d.cont.add("[red]No matching release found.").pad(5).row();
         d.cont.button("Open Releases", function() {
