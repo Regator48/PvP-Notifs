@@ -86,13 +86,15 @@ function enqueue(msg) {
 }
 
 function eventLogInfo(team, message) {
-    enqueue("E-" + eventid + " Team " + chatTeamColor(team) + team.name + "[white] " + message);
+    // Stamp the match time NOW (event time), not at send time — the queue
+    // throttles sends to one per 2s, so send-time stamps would drift.
+    enqueue("E-" + eventid + " Team " + chatTeamColor(team) + team.name + "[white] " + message + " [gray](" + fmtMapTime() + ")");
     eventid++;
 }
 
 function eventLogBlock(team, block, tile) {
     if (!tile) return;
-    enqueue("E-" + eventid + " Team " + chatTeamColor(team) + team.name + "[white] has placed:" + block.localizedName + toBlockEmoji(block) + " at (" + tile.x + "," + tile.y + ")");
+    enqueue("E-" + eventid + " Team " + chatTeamColor(team) + team.name + "[white] has placed:" + block.localizedName + toBlockEmoji(block) + " at (" + tile.x + "," + tile.y + ")" + " [gray](" + fmtMapTime() + ")");
     eventid++;
 }
 
