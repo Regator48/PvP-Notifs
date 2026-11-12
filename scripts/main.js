@@ -615,8 +615,12 @@ Events.on(EventType.ClientLoadEvent,
         // field `visible` shadows it for property syntax (calling it threw
         // "It is not a function, it is boolean"). Assign the field instead.
         timerLbl.visible = showTime;
+        // Fixed-size cell + centered text: digit-count changes (9:59 -> 10:00)
+        // must never reflow the buttons next to the timer.
+        timerLbl.setFontScale(1.5);
+        timerLbl.setAlignment(Align.center);
         timerLabelRef = timerLbl;
-        t.add(timerLbl).padLeft(8).padRight(4).name("maptime").tooltip("time since map started (game time, pauses with the game) — toggle with 'time'");
+        t.add(timerLbl).width(120).height(46).fillX().center().name("maptime").tooltip("time since map started (game time, pauses with the game) — toggle with 'time'");
 
         t.button(Icon.units, style, run(() => {
             onChat(Vars.player ? Vars.player.name : "local", "units");
