@@ -70,6 +70,7 @@ var btnTable = null;
 var powerBarRef = null;
 var mapTicks = 0;        // game ticks elapsed since this map/match started
 var timerLabelRef = null;
+var pvpCmdRegistered = false;
 
 // The queue drains at most one message per ~2s (see update()'s prevsent gate). If a
 // player bulk-builds 40 turrets while alerts are disabled, the backlog can pile up
@@ -570,6 +571,34 @@ Events.on(EventType.ClientLoadEvent,
             Vars.mods.getScripts().runConsole("this.alert = this.global.alerts.onChat");
         } catch (err) {
             print("PvP-Alerts: failed to expose onChat: " + err);
+        }
+
+        // Client command /pvp — vanilla intercepts registered client commands
+        // locally, so typed commands never leak to team chat (works on any
+        // build, no fork chat-hook needed). Forwards into the same onChat
+        // switch used by the fork hook.
+        if (!pvpCmdRegistered) {
+            pvpCmdRegistered = true;
+            try {
+                // explicit Cons (not a bare function) — register() has both a
+                // Cons<String[]> and a CommandRunner overload; ambiguity breaks Rhino
+                var pvpRunner = new Packages.arc.func.Cons(function(args) {
+                    try {
+                        var msg = "";
+                        for (var ci = 0; ci < args.length; ci++) msg += (ci > 0 ? " " : "") + args[ci];
+                        onChat(Vars.player ? Vars.player.name : "local", msg.length > 0 ? msg : "help");
+                    } catch (eC) {
+                        Log.err("PvP-Alerts /pvp failed", eC);
+                    }
+                });
+                Packages.mindustry.client.ClientVars.clientCommandHandler.register(
+                    "pvp", "<command> [args...]",
+                    "PvP-Alerts: help, debug, time, tcp, units, items, turretdmg, ammo, enable, disable, wipe, prefix",
+                    pvpRunner
+                );
+            } catch (eCmd) {
+                print("PvP-Alerts: /pvp registration failed: " + eCmd);
+            }
         }
 
         var coreplus = (t) => {
