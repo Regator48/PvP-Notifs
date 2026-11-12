@@ -68,6 +68,8 @@ var btnDragging = false;
 var bDX = 0, bDY = 0;
 var btnTable = null;
 var powerBarRef = null;
+var mapTicks = 0;        // game ticks elapsed since this map/match started
+var timerLabelRef = null;
 
 // The queue drains at most one message per ~2s (see update()'s prevsent gate). If a
 // player bulk-builds 40 turrets while alerts are disabled, the backlog can pile up
@@ -604,6 +606,12 @@ Events.on(EventType.ClientLoadEvent,
 
         var dragBtn = t.button(Icon.move, Styles.clearNonei, run(() => {
         })).width(46).height(46).name("drag").tooltip("drag to move").get();
+
+        var timerLbl = new Label(fmtMapTime());
+        timerLbl.setText(prov(() => { return fmtMapTime(); })); // self-refreshing
+        timerLbl.visible(boolf(() => { return showTime; }));
+        timerLabelRef = timerLbl;
+        t.add(timerLbl).padLeft(8).padRight(4).name("maptime").tooltip("time since map started (game time, pauses with the game) — toggle with 'time'");
 
         t.button(Icon.units, style, run(() => {
             onChat(Vars.player ? Vars.player.name : "local", "units");
@@ -1193,6 +1201,8 @@ var glitch = false;
 var delayglitch = 0;
 var showTurretDmg = false;
 try { showTurretDmg = Core.settings.getBool("pvpnotifs-showturretdmg", false); } catch (e) {}
+var showTime = true;
+try { showTime = Core.settings.getBool("pvpnotifs-showtime", true); } catch (e) {}
 var dmgBtnRef = null;
 try { syncAmmoSprites(); } catch (e) {}
 
@@ -1331,6 +1341,14 @@ function clearUnitTrail(u) {
     try { if (u.trail != null) u.trail = null; } catch (e) {}
 }
 
+// Formats mapTicks (game ticks) as M:SS / H:MM:SS.
+function fmtMapTime() {
+    var total = Math.floor(mapTicks / 60);
+    var h = Math.floor(total / 3600), m = Math.floor((total % 3600) / 60), s = total % 60;
+    if (h > 0) return h + ":" + (m < 10 ? "0" : "") + m + ":" + (s < 10 ? "0" : "") + s;
+    return m + ":" + (s < 10 ? "0" : "") + s;
+}
+
 // Distinct power graphs seen this frame, so a grid is only counted once.
 var gridSeq = new Seq();
 
@@ -1353,6 +1371,10 @@ Events.run(Trigger.update, () => {
     pips = pruneSeq(pips, pipAlive);
     anticommandspam = pruneSeq(anticommandspam, spamPending);
     anticommandspam.each(tickSpam);
+
+    // Map timer: accumulate game ticks only while actually playing, so the
+    // clock freezes on pause / after game over and respects speed changes.
+    if (Vars.state.isPlaying()) mapTicks += Time.delta;
 
     if (playerAI && Vars.player.unit() && Vars.player.unit().type) {
         try {
@@ -1425,6 +1447,7 @@ Events.run(Trigger.update, () => {
 var prevmap = "";
 
 Events.on(EventType.WorldLoadEvent, e => {
+    mapTicks = 0; // new match -> timer restarts
     var mapname = Vars.state.map.name();
     var mapChanged = (mapname != prevmap);
     prevmap = mapname;
@@ -1532,7 +1555,7 @@ const onChat = function(sender, message) {
         var cmd = all[0];
         switch (cmd) {
             case "help":
-                print("[red]PvP-Alerts [white]commands: [green]enable, disable, wipe, items, units, prefix, turretdmg, ammo, tcp, debug");
+                print("[red]PvP-Alerts [white]commands: [green]enable, disable, wipe, items, units, prefix, turretdmg, ammo, tcp, time, debug");
                 print("[gray]queue: [white]" + queue.size + "/" + QUEUE_MAX + (queueDropped > 0 ? " [red](" + queueDropped + " dropped)" : ""));
                 break;
             case "enable":
@@ -1571,6 +1594,11 @@ const onChat = function(sender, message) {
                 break;
             case "tcp":
                 tcpSet(!tcpActive);
+                break;
+            case "time":
+                showTime = !showTime;
+                try { Core.settings.put("pvpnotifs-showtime", showTime); } catch (eT) {}
+                print("[cyan]Map time: [white]" + fmtMapTime() + " [gray](HUD timer " + (showTime ? "on" : "off") + ")");
                 break;
             case "units":
 
