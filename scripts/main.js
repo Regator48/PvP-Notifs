@@ -1200,9 +1200,11 @@ var drawPips = run(() => { pips.each(drawPip); });
 
 Events.run(Trigger.drawOver, () => {
     try {
+        var d0 = Time.nanos();
         jot.drawMouse();
 
         Draw.draw(Layer.overlayUI + 0.01, drawPips);
+        swDrawNanos = Time.nanos() - d0;
     } catch (e) { Log.err("PvP-Alerts drawOver failed", e); }
 });
 
@@ -1351,11 +1353,49 @@ function clearUnitTrail(u) {
 }
 
 // Formats mapTicks (game ticks) as M:SS / H:MM:SS.
+// Cached per game-second: the label provider calls this every frame, and
+// rebuilding strings 60x/s was pure garbage for the GC.
+var _fmtCacheSec = -1;
+var _fmtCacheStr = "0:00";
 function fmtMapTime() {
     var total = Math.floor(mapTicks / 60);
+    if (total === _fmtCacheSec) return _fmtCacheStr;
+    _fmtCacheSec = total;
     var h = Math.floor(total / 3600), m = Math.floor((total % 3600) / 60), s = total % 60;
-    if (h > 0) return h + ":" + (m < 10 ? "0" : "") + m + ":" + (s < 10 ? "0" : "") + s;
-    return m + ":" + (s < 10 ? "0" : "") + s;
+    _fmtCacheStr = h > 0 ? h + ":" + (m < 10 ? "0" : "") + m + ":" + (s < 10 ? "0" : "") + s
+                         : m + ":" + (s < 10 ? "0" : "") + s;
+    return _fmtCacheStr;
+}
+
+// ==================== STUTTER WATCHDOG (debug) ====================
+// Every frame we time our own handler sections; when the gap between two
+// frames exceeds 250ms (a visible freeze) we emit one diagnostic line:
+//   - "pvp update/draw" cost high  -> our JS handlers caused the stutter
+//   - our cost low + heap near max -> GC pressure
+//   - our cost low + heap stable   -> game/server/network/render, not the mod
+// Always written to the log; shown in chat only with `debug` enabled.
+var swPrevNanos = 0;
+var swPrevPlaying = false;
+var swUpdateNanos = 0;
+var swDrawNanos = 0;
+var swSecAI = 0, swSecTrack = 0, swSecPower = 0, swSecTrails = 0;
+
+function swMs(ns) { return Math.round(ns / 1e5) / 10; }
+
+function swReport(gapMs) {
+    var heap = 0, max = 0;
+    try { heap = Math.round(Core.app.getJavaHeap() / 1048576); } catch (e0) {}
+    try { max = Math.round(java.lang.Runtime.getRuntime().maxMemory() / 1048576); } catch (e1) {}
+    var line = "STUTTER " + Math.round(gapMs) + "ms" +
+        " | pvp update " + swMs(swUpdateNanos) + "ms (ai " + swMs(swSecAI) +
+        ", track " + swMs(swSecTrack) + ", power " + swMs(swSecPower) +
+        ", trails " + swMs(swSecTrails) + ")" +
+        " | pvp draw " + swMs(swDrawNanos) + "ms" +
+        " | heap " + heap + "/" + max + "MB";
+    Log.warn("PvP-Alerts: " + line);
+    if (pvpDebug) {
+        try { Vars.ui.chatfrag.addMessage("[scarlet][PvP] " + line); } catch (e2) {}
+    }
 }
 
 // Distinct power graphs seen this frame, so a grid is only counted once.
@@ -1377,6 +1417,9 @@ function consumePowerNode(c) {
 
 Events.run(Trigger.update, () => {
     try {
+    var sw0 = Time.nanos();
+    var s0 = 0;
+
     pips = pruneSeq(pips, pipAlive);
     anticommandspam = pruneSeq(anticommandspam, spamPending);
     anticommandspam.each(tickSpam);
@@ -1385,6 +1428,7 @@ Events.run(Trigger.update, () => {
     // clock freezes on pause / after game over and respects speed changes.
     if (Vars.state.isPlaying()) mapTicks += Time.delta;
 
+    s0 = Time.nanos();
     if (playerAI && Vars.player.unit() && Vars.player.unit().type) {
         try {
             let base = Math.min(Vars.player.team().items().get(Items.copper), Vars.player.team().items().get(Items.lead));
@@ -1406,6 +1450,7 @@ Events.run(Trigger.update, () => {
             print("PvP-Alerts: AI error (multiplayer may restrict control): " + err);
         }
     }
+    swSecAI = Time.nanos() - s0;
 
     if (wasCleared) {
         var be = enabled;
@@ -1435,20 +1480,43 @@ Events.run(Trigger.update, () => {
     }
     delayglitch++;
 
+    s0 = Time.nanos();
     update();
+    swSecTrack = Time.nanos() - s0;
 
     gridSeq.clear();
     battery = 0.01;
     stored = 0;
     powerbal = 0;
 
+    s0 = Time.nanos();
     iterateOver(Vars.indexer.getFlagged(Vars.player.team(), BlockFlag.generator).iterator(), consumePowerNode);
     iterateOver(Vars.indexer.getFlagged(Vars.player.team(), BlockFlag.reactor).iterator(), consumePowerNode);
+    swSecPower = Time.nanos() - s0;
+
+    s0 = Time.nanos();
     // Null trails on all units every frame (smoke removal)
     if (showTurretDmg && ammoApplied) {
         try {
             Groups.unit.each(clearUnitTrail);
         } catch (e) {}
+    }
+    swSecTrails = Time.nanos() - s0;
+
+    swUpdateNanos = Time.nanos() - sw0;
+
+    // --- stutter watchdog: measure the gap since the previous played frame ---
+    if (Vars.state.isPlaying()) {
+        var now = Time.nanos();
+        if (swPrevPlaying && swPrevNanos > 0) {
+            var gapMs = (now - swPrevNanos) / 1e6;
+            if (gapMs > 250) swReport(gapMs);
+        }
+        swPrevNanos = now;
+        swPrevPlaying = true;
+    } else {
+        swPrevPlaying = false;
+        swPrevNanos = 0;
     }
     } catch (e) { Log.err("PvP-Alerts update loop failed", e); }
 });
