@@ -2272,13 +2272,98 @@ function findModFile() {
     return null;
 }
 
+// ==================== RAW-FILE UPDATE FALLBACK ====================
+// GitHub release assets are served from objects.githubusercontent.com, which
+// is frequently unreachable behind the GFW. The mod is only four files, so as
+// a last resort fetch each file from whichever mirror responds (remembered
+// Gitee raw -> jsDelivr -> GitHub raw) and rebuild the zip locally.
+var rawFiles = ["mod.json", "icon.png", "scripts/main.js", "scripts/jotfunction.js"];
+var rawPreferredUrl = null; // base URL that served a valid mod.json last time
+
+function rawBaseUrls() {
+    var g = getGitee();
+    var branch = getBranch();
+    var bases = [];
+    if (g.length > 0) bases.push("https://gitee.com/" + g + "/raw/" + branch + "/");
+    bases.push("https://cdn.jsdelivr.net/gh/" + getRepo() + "@" + branch + "/");
+    bases.push("https://raw.githubusercontent.com/" + getRepo() + "/" + branch + "/");
+    if (rawPreferredUrl != null) {
+        var bi = bases.indexOf(rawPreferredUrl);
+        if (bi > 0) { bases.splice(bi, 1); bases.unshift(rawPreferredUrl); }
+    }
+    return bases;
+}
+
+function fetchRawZip(fileIdx, dataMap, onZip, onFail) {
+    if (fileIdx >= rawFiles.length) {
+        try { onZip(buildZipBytes(dataMap)); } catch (e) { onFail(e); }
+        return;
+    }
+    var path = rawFiles[fileIdx];
+    var bases = rawBaseUrls();
+    var urls = [];
+    for (var bi = 0; bi < bases.length; bi++) urls.push(bases[bi] + path);
+    tryUrlList(urls, 0, path, dataMap, onZip, onFail);
+}
+
+function tryUrlList(urls, i, path, dataMap, onZip, onFail) {
+    if (i >= urls.length) { onFail(new Error("all mirrors failed for " + path)); return; }
+    Log.info("PvP-Alerts: raw fallback fetching " + urls[i]);
+    Http.get(urls[i]).header("User-Agent", "PvP-Notifs").error(function(e) {
+        Log.warn("PvP-Alerts: mirror miss " + urls[i]);
+        tryUrlList(urls, i + 1, path, dataMap, onZip, onFail);
+    }).submit(function(response) {
+        try {
+            var bytes = response.getResult();
+            if (bytes == null || bytes.length < 2) throw new Error("empty response");
+            if (path == "mod.json") {
+                // a mirror may answer 200 with an error page — validate the body
+                var txt = new java.lang.String(bytes, "UTF-8");
+                if (("" + jsonField(txt, "name")) != "PvP-Alerts") throw new Error("not a valid mod.json");
+                rawPreferredUrl = urls[i].substring(0, urls[i].length - path.length);
+            }
+            dataMap[path] = bytes;
+            fetchRawZip(fileIdx + 1, dataMap, onZip, onFail);
+        } catch (e2) {
+            tryUrlList(urls, i + 1, path, dataMap, onZip, onFail);
+        }
+    });
+}
+
+function buildZipBytes(dataMap) {
+    var baos = new java.io.ByteArrayOutputStream();
+    var zos = new java.util.zip.ZipOutputStream(baos);
+    for (var i = 0; i < rawFiles.length; i++) {
+        var path = rawFiles[i];
+        var data = dataMap[path];
+        if (data == null) throw new Error("missing " + path);
+        zos.putNextEntry(new java.util.zip.ZipEntry(path));
+        zos.write(data, 0, data.length);
+        zos.closeEntry();
+    }
+    zos.close();
+    return baos.toByteArray();
+}
+
 function downloadAndReplace(zipUrlOverride) {
     var zipUrl = zipUrlOverride || getZipUrl();
     Vars.ui.showInfoToast("Downloading update (" + getBranch() + ") ...", 4);
     httpGetFallback(zipUrl, getGiteeZipUrl(), function(response) {
-        try {
-            var bytes = response.getResult();
-            var modFile = findModFile();
+        applyZipBytes(response.getResult());
+    }, function(e) {
+        Log.warn("Update zip download failed (" + ((e && e.getMessage) ? e.getMessage() : e) + ") — trying raw-file mirror rebuild", e);
+        try { Vars.ui.showInfoToast("GitHub unreachable — trying mirrors...", 4); } catch (eT) {}
+        fetchRawZip(0, {}, applyZipBytes, function(e2) {
+            Log.err("Raw mirror rebuild failed", e2);
+            Vars.ui.showErrorMessage("Download failed: " + ((e2 && e2.getMessage) ? e2.getMessage() : e2));
+        });
+    });
+}
+
+function applyZipBytes(bytes) {
+    try {
+        if (bytes == null || bytes.length < 10) throw new Error("empty zip payload");
+        var modFile = findModFile();
             if (!modFile || !modFile.exists()) {
                 var diag = "modsDir=";
                 try { diag += (Vars.modDirectory != null ? Vars.modDirectory.path() : "null"); } catch (e) { diag += "err:" + e; }
@@ -2397,10 +2482,6 @@ function downloadAndReplace(zipUrlOverride) {
             Log.err("Update extract failed", err);
             Vars.ui.showErrorMessage("Extract failed: " + err);
         }
-    }, function(e) {
-        Log.err("Update download failed", e);
-        Vars.ui.showErrorMessage("Download failed: " + ((e && e.getMessage) ? e.getMessage() : e));
-    });
 }
 
 function semverTuple(v) {
