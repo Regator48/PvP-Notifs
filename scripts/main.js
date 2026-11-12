@@ -611,7 +611,10 @@ Events.on(EventType.ClientLoadEvent,
 
         var timerLbl = new Label(fmtMapTime());
         timerLbl.setText(prov(() => { return fmtMapTime(); })); // self-refreshing
-        timerLbl.visible(boolf(() => { return showTime; }));
+        // NOTE: el.visible(Boolp) can't be called from Rhino — the public boolean
+        // field `visible` shadows it for property syntax (calling it threw
+        // "It is not a function, it is boolean"). Assign the field instead.
+        timerLbl.visible = showTime;
         timerLabelRef = timerLbl;
         t.add(timerLbl).padLeft(8).padRight(4).name("maptime").tooltip("time since map started (game time, pauses with the game) — toggle with 'time'");
 
@@ -1600,6 +1603,7 @@ const onChat = function(sender, message) {
             case "time":
                 showTime = !showTime;
                 try { Core.settings.put("pvpnotifs-showtime", showTime); } catch (eT) {}
+                try { if (timerLabelRef != null) timerLabelRef.visible = showTime; } catch (eT2) {}
                 print("[cyan]Map time: [white]" + fmtMapTime() + " [gray](HUD timer " + (showTime ? "on" : "off") + ")");
                 break;
             case "units":
