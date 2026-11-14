@@ -55,7 +55,18 @@ function toBlockEmoji(block) {
 function getConstructingBlock(tile) {
     if (!tile || !tile.build) return Blocks.air;
     if (tile.build instanceof ConstructBlock.ConstructBuild) {
-        return tile.build.cblock;
+        // v8 renamed ConstructBuild.cblock -> current. Reading the old name
+        // returned undefined on every v8 build, so NO tracker was ever created
+        // for mid-match placements (silent notification death). Try the new
+        // name first, fall back to the old one for any build that still has it.
+        try {
+            var cur = tile.build.current;
+            if (cur != null && cur != Blocks.air) return cur;
+        } catch (e1) {}
+        try {
+            var old = tile.build.cblock;
+            if (old != null && old != Blocks.air) return old;
+        } catch (e2) {}
     }
     return tile.build.block;
 }
@@ -1644,6 +1655,26 @@ Events.on(EventType.BlockBuildBeginEvent, e => {
             }
         }
     }
+});
+
+// Multiplayer safety net: BlockBuildBeginEvent rides the (possibly unreliable)
+// beginPlace relay — if a packet is dropped, the begin handler never runs and
+// no tracker is created. TileChangeEvent fires client-side from the reliable
+// constructFinish call when the finished building materializes, so a missed
+// begin still produces its alert (the per-team milestone dedupes doubles).
+Events.on(EventType.TileChangeEvent, e => {
+    try {
+        var tile = e.tile;
+        if (!tile || !tile.build) return;
+        var team = tile.team();
+        if (team == null || team === Team.derelict || team === Vars.player.team()) return;
+        if (blocktrackhandle) {
+            var keysT = Object.keys(blocktrackhandle);
+            for (var iT = 0; iT < keysT.length; iT++) {
+                blocktrackhandle[keysT[iT]].processBuildingEvent(team, tile);
+            }
+        }
+    } catch (eTc) { pvplog("TileChangeEvent handler error: " + eTc); }
 });
 
 Events.on(EventType.UnitCreateEvent, e => {
