@@ -16,6 +16,11 @@ var lastUnlockTable = null;
 var lastUnlockLayout = null;
 
 function popup(intable) {
+    // One popup at a time: replace any popup still on screen instead of stacking.
+    if (lastUnlockTable != null) {
+        try { lastUnlockTable.remove(); } catch (eP0) {}
+        lastUnlockTable = null;
+    }
     var table = new Table(Tex.button);
     table.update(() => {
         if (Vars.state.isMenu()) {
@@ -110,6 +115,28 @@ function eventLogBlock(team, block, tile) {
     eventid++;
 }
 
+// Records reached tech into the team's per-match tech record — survives the
+// building being destroyed, so the tech summary shows tech they HAD, not just
+// factories standing right now.
+function recordTech(team, block) {
+    try {
+        if (!team || !block) return;
+        var ach = getTeamAch(team);
+        if (!ach.tech) ach.tech = {};
+        ach.tech[block.name] = block;
+    } catch (e0) {}
+}
+
+// Top-of-screen popup when a team reaches new tech (reuses the unlock-popup UI).
+function showTechPopup(team, block) {
+    if (!showPopup) return;
+    try {
+        var pt = new Table();
+        pt.add("[white]" + toBlockEmoji(block) + " " + chatTeamColor(team) + team.name + "[white] [gray]—[white] " + block.localizedName + " [gray](" + fmtMapTime() + ")");
+        popup(pt);
+    } catch (e1) {}
+}
+
 const Milestone = {
     name: "",
     complete: false,
@@ -162,10 +189,12 @@ const BlockTracker = {
         }
     },
     displayAlert(team, block, tile) {
+        recordTech(team, block);
         if (!this.customText) {
             eventLogBlock(team, block, tile);
         } else {
             eventLogInfo(team, this.customText(team, block, tile));
+            showTechPopup(team, block);
         }
     }
 };
@@ -1254,6 +1283,8 @@ var showTurretDmg = false;
 try { showTurretDmg = Core.settings.getBool("pvpnotifs-showturretdmg", false); } catch (e) {}
 var showTime = true;
 try { showTime = Core.settings.getBool("pvpnotifs-showtime", true); } catch (e) {}
+var showPopup = true;
+try { showPopup = Core.settings.getBool("pvpnotifs-showpopup", true); } catch (e) {}
 var dmgBtnRef = null;
 try { syncAmmoSprites(); } catch (e) {}
 
@@ -1692,7 +1723,7 @@ const onChat = function(sender, message) {
         var cmd = all[0];
         switch (cmd) {
             case "help":
-                print("[red]PvP-Alerts [white]commands: [green]enable, disable, wipe, items, units, prefix, turretdmg, ammo, tcp, time, debug");
+                print("[red]PvP-Alerts [white]commands: [green]enable, disable, wipe, items, units, prefix, turretdmg, ammo, tcp, time, popup, debug");
                 print("[gray]queue: [white]" + queue.size + "/" + QUEUE_MAX + (queueDropped > 0 ? " [red](" + queueDropped + " dropped)" : ""));
                 break;
             case "enable":
@@ -1737,6 +1768,11 @@ const onChat = function(sender, message) {
                 try { Core.settings.put("pvpnotifs-showtime", showTime); } catch (eT) {}
                 try { if (timerLabelRef != null) timerLabelRef.visible = showTime; } catch (eT2) {}
                 print("[cyan]Map time: [white]" + fmtMapTime() + " [gray](HUD timer " + (showTime ? "on" : "off") + ")");
+                break;
+            case "popup":
+                showPopup = !showPopup;
+                try { Core.settings.put("pvpnotifs-showpopup", showPopup); } catch (eP1) {}
+                print("[cyan]Tech popups " + (showPopup ? "[green]on" : "[red]off"));
                 break;
             case "units":
 
@@ -1872,17 +1908,22 @@ function rebuildTechSummary(t) {
             if (!teamData[tid]) {
                 teamData[tid] = {team: team, materials: {}, keyBuildings: {}, unitCounts: {}};
             }
-            var block = b.block;
+            // v8: under-construction buildings sit in Groups.build as a
+            // ConstructBuild whose .block is the construct block — resolve the
+            // real target so in-progress factories show up (as "~").
+            var constructing = (b instanceof ConstructBlock.ConstructBuild);
+            var block = constructing ? getConstructingBlock(b.tile) : b.block;
+            if (!block || block == Blocks.air) continue;
             for (var mi = 0; mi < materialBlocks.length; mi++) {
                 for (var bi = 0; bi < materialBlocks[mi].blocks.length; bi++) {
                     if (block == materialBlocks[mi].blocks[bi]) {
-                        teamData[tid].materials[materialBlocks[mi].item.name] = materialBlocks[mi].item;
+                        teamData[tid].materials[materialBlocks[mi].item.name] = constructing ? "building" : "has";
                     }
                 }
             }
             for (var ki = 0; ki < keyBlocks.length; ki++) {
                 if (block == keyBlocks[ki]) {
-                    teamData[tid].keyBuildings[block.name] = block;
+                    teamData[tid].keyBuildings[block.name] = constructing ? "building" : "has";
                 }
             }
         }
@@ -1910,6 +1951,35 @@ function rebuildTechSummary(t) {
         t.add("[gray]No teams detected.");
         return;
     }
+
+    // Merge the per-match tech record (from real-time alerts): a factory that
+    // was destroyed still means the tech was reached, so keep it "+" — this is
+    // what makes the summary match reality instead of only standing buildings.
+    try {
+        for (var tm2 = 0; tm2 < teamIds.length; tm2++) {
+            var tdT = teamData[teamIds[tm2]];
+            var achT = getTeamAch(tdT.team);
+            if (achT && achT.tech) {
+                for (var tnT in achT.tech) {
+                    var tbT = achT.tech[tnT];
+                    if (!tbT) continue;
+                    for (var miT = 0; miT < materialBlocks.length; miT++) {
+                        for (var biT = 0; biT < materialBlocks[miT].blocks.length; biT++) {
+                            if (tbT == materialBlocks[miT].blocks[biT] && tdT.materials[materialBlocks[miT].item.name] == null) {
+                                tdT.materials[materialBlocks[miT].item.name] = "tech";
+                            }
+                        }
+                    }
+                    for (var kiT = 0; kiT < keyBlocks.length; kiT++) {
+                        if (tbT == keyBlocks[kiT] && tdT.keyBuildings[keyBlocks[kiT].name] == null) {
+                            tdT.keyBuildings[keyBlocks[kiT].name] = "tech";
+                        }
+                    }
+                }
+            }
+        }
+    } catch (errT) {}
+
     for (var ti = 0; ti < teamIds.length; ti++) {
         var td = teamData[teamIds[ti]];
         var tm = td.team;
@@ -1920,14 +1990,18 @@ function rebuildTechSummary(t) {
         t.add(label);
         t.row();
 
+        // + = standing (or reached this match), ~ = under construction, - = none
         var matLine = "[gray]Materials: ";
         var matKeys = Object.keys(td.materials);
         if (matKeys.length == 0) {
             matLine += "[darkgray]none";
         } else {
             for (var mi = 0; mi < materialBlocks.length; mi++) {
-                var has = td.materials[materialBlocks[mi].item.name] != null;
-                matLine += (has ? "[green]+" : "[darkgray]-") + "[white]" + toBlockEmoji(materialBlocks[mi].item);
+                var mst = td.materials[materialBlocks[mi].item.name];
+                if (mst == null) matLine += "[darkgray]-";
+                else if (mst == "building") matLine += "[yellow]~";
+                else matLine += "[green]+";
+                matLine += "[white]" + toBlockEmoji(materialBlocks[mi].item);
             }
         }
         t.add(matLine);
@@ -1939,8 +2013,11 @@ function rebuildTechSummary(t) {
             bLine += "[darkgray]none";
         } else {
             for (var bi = 0; bi < keyBlocks.length; bi++) {
-                var has = td.keyBuildings[keyBlocks[bi].name] != null;
-                bLine += (has ? "[green]+" : "[darkgray]-") + "[white]" + toBlockEmoji(keyBlocks[bi]);
+                var bst = td.keyBuildings[keyBlocks[bi].name];
+                if (bst == null) bLine += "[darkgray]-";
+                else if (bst == "building") bLine += "[yellow]~";
+                else bLine += "[green]+";
+                bLine += "[white]" + toBlockEmoji(keyBlocks[bi]);
             }
         }
         t.add(bLine);
