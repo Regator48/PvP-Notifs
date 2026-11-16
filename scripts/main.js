@@ -614,15 +614,13 @@ Events.on(EventType.ClientLoadEvent,
         }
 
         // Client command /pvp — vanilla intercepts registered client commands
-        // locally, so typed commands never leak to team chat (works on any
-        // build, no fork chat-hook needed). Forwards into the same onChat
-        // switch used by the fork hook.
+        // locally, so typed commands never leak to team chat. NOTE: the runner
+        // MUST be the object-literal SAM form ({get: fn}) — the mod's proven
+        // pattern; a bare function in `new Cons(fn)` does not reliably adapt.
         if (!pvpCmdRegistered) {
             pvpCmdRegistered = true;
             try {
-                // explicit Cons (not a bare function) — register() has both a
-                // Cons<String[]> and a CommandRunner overload; ambiguity breaks Rhino
-                var pvpRunner = new Packages.arc.func.Cons(function(args) {
+                var pvpRunner = new Packages.arc.func.Cons({get: function(args) {
                     try {
                         var msg = "";
                         for (var ci = 0; ci < args.length; ci++) msg += (ci > 0 ? " " : "") + args[ci];
@@ -630,12 +628,13 @@ Events.on(EventType.ClientLoadEvent,
                     } catch (eC) {
                         Log.err("PvP-Alerts /pvp failed", eC);
                     }
-                });
+                }});
                 Packages.mindustry.client.ClientVars.clientCommandHandler.register(
                     "pvp", "<command> [args...]",
                     "PvP-Alerts: help, debug, time, tcp, units, items, turretdmg, ammo, enable, disable, wipe, prefix",
                     pvpRunner
                 );
+                print("[green]/pvp client command registered");
             } catch (eCmd) {
                 print("PvP-Alerts: /pvp registration failed: " + eCmd);
             }
@@ -793,6 +792,10 @@ Events.on(EventType.ClientLoadEvent,
                 return true;
             }
         }));
+
+        var cmdsBtn = t.button(Icon.list, Styles.clearTogglei, run(() => {
+            showCommandsDialog();
+        })).width(46).height(46).name("commands").tooltip("all PvP-Alerts commands — no chat needed").get();
 
         t.pack();
         t.setPosition(savedBtnX, savedBtnY);
@@ -2619,6 +2622,33 @@ function applyZipBytes(bytes) {
             Log.err("Update extract failed", err);
             Vars.ui.showErrorMessage("Extract failed: " + err);
         }
+}
+
+// All mod commands as clickable buttons — bypasses chat entirely (slash
+// commands and bare words both depend on chat routing that varies by build).
+function showCommandsDialog() {
+    try {
+        var d = new BaseDialog("PvP-Alerts");
+        d.addCloseButton();
+        var g = d.cont;
+        g.add("[gray]version [white]" + localModVersion()).pad(4).colspan(2).row();
+
+        var tog = function(label, cmd) {
+            g.button(label, function() { onChat("local", cmd); }).width(150).height(44);
+        };
+        tog("Alerts on", "enable"); tog("Alerts off", "disable"); g.row();
+        tog("Count units", "units"); tog("Scan items", "items"); g.row();
+        tog("Ammo shapes", "turretdmg"); tog("Ammo diag", "ammo"); g.row();
+        tog("Force TCP", "tcp"); tog("Timer show/hide", "time"); g.row();
+        tog("Tech popups", "popup"); tog("Debug logs", "debug"); g.row();
+        g.button("[scarlet]Wipe alerts", function() { onChat("local", "wipe"); }).width(150).height(44);
+        g.button("Tech summary", function() { d.hide(); showTechSummary(); }).width(150).height(44);
+        g.row();
+        g.add("[gray]Chat alt: [white]/pvp <command>[gray]  (feedback prints in the command bar)").pad(6).colspan(2).row();
+        d.show();
+    } catch (e0) {
+        Log.err("PvP-Alerts: commands dialog failed", e0);
+    }
 }
 
 function semverTuple(v) {
