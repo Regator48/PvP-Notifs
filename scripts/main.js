@@ -128,13 +128,37 @@ function recordTech(team, block) {
 }
 
 // Top-of-screen popup when a team reaches new tech (reuses the unlock-popup UI).
-function showTechPopup(team, block) {
+// Clickable: pans the camera to the alerted building, like chat coord links.
+function showTechPopup(team, block, tile) {
     if (!showPopup) return;
     try {
+        var wx = (tile && tile.worldx) ? tile.worldx() : null;
+        var wy = (tile && tile.worldy) ? tile.worldy() : null;
         var pt = new Table();
-        pt.add("[white]" + toBlockEmoji(block) + " " + chatTeamColor(team) + team.name + "[white] [gray]—[white] " + block.localizedName + " [gray](" + fmtMapTime() + ")");
+        pt.touchable = Touchable.enabled;
+        pt.add("[white]" + toBlockEmoji(block) + " " + chatTeamColor(team) + team.name + "[white] [gray]—[white] " + block.localizedName + " [gray](" + fmtMapTime() + ")").pad(4);
+        if (wx != null) {
+            pt.tooltip("click to view location");
+            pt.clicked(function() {
+                focusLocation(wx, wy);
+            });
+        }
         popup(pt);
     } catch (e1) {}
+}
+
+// Vanilla "fly to location" — the same mechanism as clicking chat coordinate
+// links: camera jumps there and stays until the player gives movement input.
+function focusLocation(wx, wy) {
+    try {
+        if (Vars.control && Vars.control.input && Vars.control.input.panCamera) {
+            Vars.control.input.panCamera(new Packages.arc.math.geom.Vec2(wx, wy));
+        } else if (Core.camera != null) {
+            Core.camera.position.set(wx, wy);
+        }
+    } catch (e0) {
+        try { Core.camera.position.set(wx, wy); } catch (e1) {}
+    }
 }
 
 const Milestone = {
@@ -194,7 +218,7 @@ const BlockTracker = {
             eventLogBlock(team, block, tile);
         } else {
             eventLogInfo(team, this.customText(team, block, tile));
-            showTechPopup(team, block);
+            showTechPopup(team, block, tile);
         }
     }
 };
