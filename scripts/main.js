@@ -138,7 +138,8 @@ function showTechPopup(team, block, tile) {
         pt.touchable = Touchable.enabled;
         pt.add("[white]" + toBlockEmoji(block) + " " + chatTeamColor(team) + team.name + "[white] [gray]—[white] " + block.localizedName + " [gray](" + fmtMapTime() + ")").pad(4);
         if (wx != null) {
-            pt.tooltip("click to view location");
+            // NOTE: no Element.tooltip() here — arc Element has no tooltip method
+            // (that's Cell.tooltip) and the throw killed the whole popup in 1.8.2
             pt.clicked(function() {
                 focusLocation(wx, wy);
             });
