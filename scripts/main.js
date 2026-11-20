@@ -145,7 +145,10 @@ function showTechPopup(team, block, tile) {
             });
         }
         popup(pt);
-    } catch (e1) {}
+    } catch (e1) {
+        // never swallow silently again — visible with /pvp debug
+        pvplog("tech popup failed: " + e1);
+    }
 }
 
 // Vanilla "fly to location" — the same mechanism as clicking chat coordinate
@@ -1687,15 +1690,18 @@ function clear() {
 
     wasCleared = true;
 
+    // Perf: hoist the handler keys out of the tile loop (Object.keys per built
+    // tile = thousands of throwaway arrays per map load) and skip buildless
+    // tiles before dispatching to any handler.
+    var scanKeys = blocktrackhandle ? Object.keys(blocktrackhandle) : null;
     Vars.world.tiles.each((x, y) => {
         var tile = Vars.world.tiles.getn(x, y);
-        if (!tile) return;
+        if (!tile || !tile.build) return;
         if (tile.team() !== Team.derelict) {
             if (tile.team() !== Vars.player.team() && tile.team().core()) {
-                if (blocktrackhandle) {
-                    var keys2 = Object.keys(blocktrackhandle);
-                    for (var i = 0; i < keys2.length; i++) {
-                        blocktrackhandle[keys2[i]].processBuildingEvent(tile.team(), tile);
+                if (scanKeys) {
+                    for (var i = 0; i < scanKeys.length; i++) {
+                        blocktrackhandle[scanKeys[i]].processBuildingEvent(tile.team(), tile);
                     }
                 }
             }
@@ -1726,7 +1732,9 @@ Events.on(EventType.TileChangeEvent, e => {
         var tile = e.tile;
         if (!tile || !tile.build) return;
         var team = tile.team();
-        if (team == null || team === Team.derelict || team === Vars.player.team()) return;
+        // loose == on Java teams (matches the rest of the mod; === compares
+        // wrapper identity in some Rhino builds)
+        if (team == null || team == Team.derelict || team == Vars.player.team()) return;
         if (blocktrackhandle) {
             var keysT = Object.keys(blocktrackhandle);
             for (var iT = 0; iT < keysT.length; iT++) {
