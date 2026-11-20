@@ -5,10 +5,25 @@ const jot = require("jotfunction");
 var pvpDebug = false;
 try { pvpDebug = Core.settings.getBool("pvpnotifs-debug", false); } catch(e) {}
 
+// Debug channel broadcast: when on, [PvP] debug lines (stutter reports, popup
+// failures) are ALSO sent to team chat so teammates see them. Throttled hard —
+// servers kick chat spammers.
+var debugTeam = false;
+try { debugTeam = Core.settings.getBool("pvpnotifs-debugteam", false); } catch(e) {}
+var lastTeamDebugMs = 0;
+function debugTeamMsg(msg) {
+    if (!debugTeam) return;
+    var now = Time.millis();
+    if (now - lastTeamDebugMs < 2000) return; // max 1 team msg per 2s
+    lastTeamDebugMs = now;
+    try { Call.sendChatMessage(prefix + " [yellow][PvP] " + msg); } catch (e0) {}
+}
+
 function pvplog(msg) {
     if (!pvpDebug) return;
     try { Vars.ui.chatfrag.addMessage("[yellow][PvP] " + msg); } catch(e) {}
     try { Vars.ui.showInfoToast(msg, 4); } catch(e) {}
+    debugTeamMsg(msg);
 }
 
 global.alerts = {};
@@ -1497,6 +1512,7 @@ function swReport(gapMs) {
     Log.warn("PvP-Alerts: " + line);
     if (pvpDebug) {
         try { Vars.ui.chatfrag.addMessage("[scarlet][PvP] " + line); } catch (e2) {}
+        debugTeamMsg(line);
     }
 }
 
@@ -1759,7 +1775,7 @@ const onChat = function(sender, message) {
         var cmd = all[0];
         switch (cmd) {
             case "help":
-                print("[red]PvP-Alerts [white]commands: [green]enable, disable, wipe, items, units, prefix, turretdmg, ammo, tcp, time, popup, debug");
+                print("[red]PvP-Alerts [white]commands: [green]enable, disable, wipe, items, units, prefix, turretdmg, ammo, tcp, time, popup, debug, dteam");
                 print("[gray]queue: [white]" + queue.size + "/" + QUEUE_MAX + (queueDropped > 0 ? " [red](" + queueDropped + " dropped)" : ""));
                 break;
             case "enable":
@@ -1809,6 +1825,11 @@ const onChat = function(sender, message) {
                 showPopup = !showPopup;
                 try { Core.settings.put("pvpnotifs-showpopup", showPopup); } catch (eP1) {}
                 print("[cyan]Tech popups " + (showPopup ? "[green]on" : "[red]off"));
+                break;
+            case "dteam":
+                debugTeam = !debugTeam;
+                try { Core.settings.put("pvpnotifs-debugteam", debugTeam); } catch (eD1) {}
+                print("[cyan]Debug->team chat " + (debugTeam ? "[green]on[gray] (max 1 msg/2s)" : "[red]off"));
                 break;
             case "units":
 
@@ -2674,8 +2695,8 @@ function showCommandsDialog() {
         tog("Ammo shapes", "turretdmg"); tog("Ammo diag", "ammo"); g.row();
         tog("Force TCP", "tcp"); tog("Timer show/hide", "time"); g.row();
         tog("Tech popups", "popup"); tog("Debug logs", "debug"); g.row();
+        tog("Debug->team", "dteam"); g.button("Tech summary", function() { d.hide(); showTechSummary(); }).width(150).height(44); g.row();
         g.button("[scarlet]Wipe alerts", function() { onChat("local", "wipe"); }).width(150).height(44);
-        g.button("Tech summary", function() { d.hide(); showTechSummary(); }).width(150).height(44);
         g.row();
         g.add("[gray]Chat alt: [white]/pvp <command>[gray]  (feedback prints in the command bar)").pad(6).colspan(2).row();
         d.show();
