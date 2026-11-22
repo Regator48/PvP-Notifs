@@ -117,16 +117,18 @@ function enqueue(msg) {
     queue.add(msg);
 }
 
-function eventLogInfo(team, message) {
+function eventLogInfo(team, message, locate) {
     // Stamp the match time NOW (event time), not at send time — the queue
     // throttles sends to one per 2s, so send-time stamps would drift.
     enqueue("E-" + eventid + " Team " + chatTeamColor(team) + team.name + "[white] " + message + " [gray](" + fmtMapTime() + ")");
+    notifyPopup(team, message, locate);
     eventid++;
 }
 
 function eventLogBlock(team, block, tile) {
     if (!tile) return;
     enqueue("E-" + eventid + " Team " + chatTeamColor(team) + team.name + "[white] has placed:" + block.localizedName + toBlockEmoji(block) + " at (" + tile.x + "," + tile.y + ")" + " [gray](" + fmtMapTime() + ")");
+    notifyPopup(team, "has placed:" + block.localizedName + toBlockEmoji(block) + " at (" + tile.x + "," + tile.y + ")", {x: tile.worldx(), y: tile.worldy()});
     eventid++;
 }
 
@@ -142,27 +144,26 @@ function recordTech(team, block) {
     } catch (e0) {}
 }
 
-// Top-of-screen popup when a team reaches new tech (reuses the unlock-popup UI).
-// Clickable: pans the camera to the alerted building, like chat coord links.
-function showTechPopup(team, block, tile) {
+// Top-of-screen popup for ANY alert (reuses the unlock-popup UI). Clickable
+// when a location is available: pans the camera to the alerted building, like
+// chat coordinate links. `message` is the alert body WITHOUT the team prefix.
+function notifyPopup(team, message, locate) {
     if (!showPopup) return;
     try {
-        var wx = (tile && tile.worldx) ? tile.worldx() : null;
-        var wy = (tile && tile.worldy) ? tile.worldy() : null;
         var pt = new Table();
         pt.touchable = Touchable.enabled;
-        pt.add("[white]" + toBlockEmoji(block) + " " + chatTeamColor(team) + team.name + "[white] [gray]—[white] " + block.localizedName + " [gray](" + fmtMapTime() + ")").pad(4);
-        if (wx != null) {
+        pt.add(chatTeamColor(team) + team.name + "[white] " + message + " [gray](" + fmtMapTime() + ")").pad(4);
+        if (locate && locate.x != null) {
             // NOTE: no Element.tooltip() here — arc Element has no tooltip method
             // (that's Cell.tooltip) and the throw killed the whole popup in 1.8.2
             pt.clicked(function() {
-                focusLocation(wx, wy);
+                focusLocation(locate.x, locate.y);
             });
         }
         popup(pt);
     } catch (e1) {
         // never swallow silently again — visible with /pvp debug
-        pvplog("tech popup failed: " + e1);
+        pvplog("popup failed: " + e1);
     }
 }
 
@@ -236,8 +237,8 @@ const BlockTracker = {
         if (!this.customText) {
             eventLogBlock(team, block, tile);
         } else {
-            eventLogInfo(team, this.customText(team, block, tile));
-            showTechPopup(team, block, tile);
+            var locate = (tile && tile.worldx) ? {x: tile.worldx(), y: tile.worldy()} : null;
+            eventLogInfo(team, this.customText(team, block, tile), locate);
         }
     }
 };
@@ -435,6 +436,23 @@ function registerTrackHandlers() {
     addTrackHandler(BlockTrackHandler.new("laserDrill", BlockBuildTracker, Blocks.laserDrill, false, oreDrillEvent));
     addTrackHandler(BlockTrackHandler.new("blastDrill", BlockBuildTracker, Blocks.blastDrill, false, oreDrillEvent));
 
+    // Notable power generators — reaching these is high-value intel (reactors
+    // mean high tech). Basic combustion/solar are skipped to avoid spam.
+    var genEvent = {
+        customText: function(team, block, tile) {
+            return "has built a [accent]" + block.localizedName + "[white] " + toBlockEmoji(block);
+        }
+    };
+    var genNames = [
+        "steamGenerator", "thermalGenerator", "rtgGenerator", "thoriumReactor", "impactReactor",
+        "turbineCondenser", "ventCondenser", "chemicalCombustionChamber", "pyrolysisGenerator",
+        "fluxReactor", "neutroniumReactor"
+    ];
+    for (var gi = 0; gi < genNames.length; gi++) {
+        var gb = Blocks[genNames[gi]];
+        if (gb) addTrackHandler(BlockTrackHandler.new(genNames[gi], BlockBuildTracker, gb, false, genEvent));
+    }
+
     // Every unit factory / reconstructor, so new content is tracked automatically.
     Vars.content.blocks().each((e2) => {
         if (e2 instanceof UnitFactory) {
@@ -607,7 +625,7 @@ Events.on(EventType.BlockDestroyEvent, cons(e => {
         if (tile.team() == Vars.player.team()) {
             queue.add("[red]!!Core at (" + tile.x + "," + tile.y + ") was lost!!");
         } else {
-            eventLogInfo(tile.team(), "has lost a core at (" + tile.x + "," + tile.y + ")");
+            eventLogInfo(tile.team(), "has lost a core at (" + tile.x + "," + tile.y + ")", {x: tile.worldx(), y: tile.worldy()});
         }
     }
 
@@ -1824,7 +1842,7 @@ const onChat = function(sender, message) {
             case "popup":
                 showPopup = !showPopup;
                 try { Core.settings.put("pvpnotifs-showpopup", showPopup); } catch (eP1) {}
-                print("[cyan]Tech popups " + (showPopup ? "[green]on" : "[red]off"));
+                print("[cyan]Alert popups " + (showPopup ? "[green]on" : "[red]off"));
                 break;
             case "dteam":
                 debugTeam = !debugTeam;
@@ -1951,6 +1969,17 @@ function rebuildTechSummary(t) {
         if (kb) keyBlocks.push(kb);
     }
 
+    var genBlockNames = [
+        "steamGenerator", "thermalGenerator", "rtgGenerator", "thoriumReactor", "impactReactor",
+        "turbineCondenser", "ventCondenser", "chemicalCombustionChamber", "pyrolysisGenerator",
+        "fluxReactor", "neutroniumReactor"
+    ];
+    var genBlocks = [];
+    for (var gbi = 0; gbi < genBlockNames.length; gbi++) {
+        var gbx = blk(genBlockNames[gbi]);
+        if (gbx) genBlocks.push(gbx);
+    }
+
     var teamData = {};
     t.clear();
 
@@ -1963,7 +1992,7 @@ function rebuildTechSummary(t) {
             if (!team || team == Team.derelict) continue;
             var tid = team.id;
             if (!teamData[tid]) {
-                teamData[tid] = {team: team, materials: {}, keyBuildings: {}, unitCounts: {}};
+                teamData[tid] = {team: team, materials: {}, keyBuildings: {}, gens: {}, unitCounts: {}};
             }
             // v8: under-construction buildings sit in Groups.build as a
             // ConstructBuild whose .block is the construct block — resolve the
@@ -1983,6 +2012,11 @@ function rebuildTechSummary(t) {
                     teamData[tid].keyBuildings[block.name] = constructing ? "building" : "has";
                 }
             }
+            for (var gi2 = 0; gi2 < genBlocks.length; gi2++) {
+                if (block == genBlocks[gi2]) {
+                    teamData[tid].gens[genBlocks[gi2].name] = constructing ? "building" : "has";
+                }
+            }
         }
     } catch (err) {}
 
@@ -1993,7 +2027,7 @@ function rebuildTechSummary(t) {
             if (!u || u.dead) continue;
             var tid = u.team.id;
             if (!teamData[tid]) {
-                teamData[tid] = {team: u.team, materials: {}, keyBuildings: {}, unitCounts: {}};
+                teamData[tid] = {team: u.team, materials: {}, keyBuildings: {}, gens: {}, unitCounts: {}};
             }
             var tn = u.type.name;
             if (!teamData[tid].unitCounts[tn]) {
@@ -2030,6 +2064,11 @@ function rebuildTechSummary(t) {
                     for (var kiT = 0; kiT < keyBlocks.length; kiT++) {
                         if (tbT == keyBlocks[kiT] && tdT.keyBuildings[keyBlocks[kiT].name] == null) {
                             tdT.keyBuildings[keyBlocks[kiT].name] = "tech";
+                        }
+                    }
+                    for (var giT = 0; giT < genBlocks.length; giT++) {
+                        if (tbT == genBlocks[giT] && tdT.gens[genBlocks[giT].name] == null) {
+                            tdT.gens[genBlocks[giT].name] = "tech";
                         }
                     }
                 }
@@ -2078,6 +2117,17 @@ function rebuildTechSummary(t) {
             }
         }
         t.add(bLine);
+        t.row();
+
+        var gLine = "[gray]Power: ";
+        for (var gi3 = 0; gi3 < genBlocks.length; gi3++) {
+            var gst = td.gens[genBlocks[gi3].name];
+            if (gst == null) gLine += "[darkgray]-";
+            else if (gst == "building") gLine += "[yellow]~";
+            else gLine += "[green]+";
+            gLine += "[white]" + toBlockEmoji(genBlocks[gi3]);
+        }
+        t.add(gLine);
         t.row();
 
         var uKeys = Object.keys(td.unitCounts);
@@ -2694,7 +2744,7 @@ function showCommandsDialog() {
         tog("Count units", "units"); tog("Scan items", "items"); g.row();
         tog("Ammo shapes", "turretdmg"); tog("Ammo diag", "ammo"); g.row();
         tog("Force TCP", "tcp"); tog("Timer show/hide", "time"); g.row();
-        tog("Tech popups", "popup"); tog("Debug logs", "debug"); g.row();
+        tog("Popups", "popup"); tog("Debug logs", "debug"); g.row();
         tog("Debug->team", "dteam"); g.button("Tech summary", function() { d.hide(); showTechSummary(); }).width(150).height(44); g.row();
         g.button("[scarlet]Wipe alerts", function() { onChat("local", "wipe"); }).width(150).height(44);
         g.row();
