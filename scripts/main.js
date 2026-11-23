@@ -136,6 +136,7 @@ function recordTech(team, block) {
 // chat coordinate links. `message` is the alert body WITHOUT the team prefix.
 function notifyPopup(team, message, locate) {
     if (!showPopup) return;
+    if (alertMode == 0) return; // OFF silences popups too — a real kill switch
     try {
         var pt = new Table();
         pt.touchable = Touchable.enabled;
@@ -611,13 +612,18 @@ try {
 var alertChatBtnRef = null;
 
 function alertModeLabel() {
-    return alertMode == 2 ? "[green]TEAM CHAT" : (alertMode == 1 ? "[yellow]LOCAL" : "[red]OFF");
+    return alertMode == 2 ? "[green]TEAM" : (alertMode == 1 ? "[yellow]LOCAL" : "[red]OFF");
 }
 
 function setAlertMode(m) {
     alertMode = m;
     try { Core.settings.put("pvpnotifs-alertmode", alertMode); } catch (e1) {}
-    try { if (alertChatBtnRef != null) alertChatBtnRef.setChecked(alertMode == 2); } catch (e2) {}
+    try {
+        if (alertChatBtnRef != null) {
+            alertChatBtnRef.setChecked(alertMode == 2);
+            alertChatBtnRef.setText(alertModeLabel());
+        }
+    } catch (e2) {}
 }
 
 Events.on(EventType.BlockDestroyEvent, cons(e => {
@@ -834,10 +840,17 @@ Events.on(EventType.ClientLoadEvent,
         tcpBtn.setChecked(tcpActive);
         tcpBtnRef = tcpBtn;
 
-        var alertChatBtn = t.button(Icon.chat, Styles.clearTogglei, run(() => {
+        // Text label (not an icon): TEAM/LOCAL/OFF must be visually distinct —
+        // the icon version only showed checked for TEAM and made LOCAL and OFF
+        // look identical, which read as "off isn't working".
+        var alertChatBtn = t.button("", Styles.clearTogglei, run(() => {
             // cycle TEAM -> LOCAL -> OFF -> TEAM
             setAlertMode(alertMode == 2 ? 1 : (alertMode == 1 ? 0 : 2));
-        })).width(46).height(46).name("teamalerts").tooltip("alert routing: TEAM CHAT -> LOCAL -> OFF (click cycles)").get();
+        })).width(64).height(46).name("teamalerts").tooltip("alert routing: TEAM -> LOCAL -> OFF (click cycles; OFF silences chat alerts AND popups)").get();
+        try {
+            alertChatBtn.setText(alertModeLabel());
+            alertChatBtn.getLabel().setFontScale(0.85);
+        } catch (eAL) {}
         alertChatBtn.setChecked(alertMode == 2);
         alertChatBtnRef = alertChatBtn;
 
@@ -1390,14 +1403,50 @@ function tcpSave() {
 }
 
 // Returns [providerField, provider, kryoClient], or null (tcpStatus explains).
+// Resolves Net.provider via Class.forName — findField()'s obj.getClass() is a
+// Rhino wrapper proxy and getDeclaredField on it fails on some builds.
+function tcpProviderField() {
+    try {
+        var netCls = java.lang.Class.forName("mindustry.net.Net");
+        try {
+            var f = netCls.getDeclaredField("provider");
+            f.setAccessible(true);
+            return f;
+        } catch (e0) {}
+        var c = netCls.getSuperclass();
+        while (c != null) {
+            try {
+                var f2 = c.getDeclaredField("provider");
+                f2.setAccessible(true);
+                return f2;
+            } catch (e1) {}
+            c = c.getSuperclass();
+        }
+    } catch (e2) {}
+    return null;
+}
+
 function tcpReflect() {
     try {
-        var providerField = findField(Vars.net, "provider");
+        var providerField = tcpProviderField();
         if (providerField == null) { tcpStatus = "no Net.provider field"; return null; }
+        providerField.setAccessible(true);
         var provider = providerField.get(Vars.net);
         if (provider == null) { tcpStatus = "net provider is null"; return null; }
-        var clientField = findField(provider, "client");
-        if (clientField == null) { tcpStatus = "no client field (custom net provider?)"; return null; }
+
+        var clientField = null;
+        try { clientField = java.lang.Class.forName("mindustry.net.ArcNetProvider").getDeclaredField("client"); } catch (e5) {}
+        if (clientField == null) {
+            // provider may be a fork/custom implementation — probe its own class
+            try { clientField = provider.getClass().getDeclaredField("client"); } catch (e6) {}
+        }
+        if (clientField == null) {
+            var pcn = "?";
+            try { pcn = "" + provider.getClass().getName(); } catch (e7) {}
+            tcpStatus = "no client field on " + pcn;
+            return null;
+        }
+        clientField.setAccessible(true);
         var client = clientField.get(provider);
         if (client == null) { tcpStatus = "kryo client is null"; return null; }
         return [providerField, provider, client];
@@ -1448,7 +1497,7 @@ function tcpEnable() {
 function tcpDisable() {
     if (!tcpActive && tcpProxy == null) { tcpActive = false; tcpStatus = "off"; return true; }
     try {
-        var providerField = findField(Vars.net, "provider");
+        var providerField = tcpProviderField();
         if (providerField != null && providerField.get(Vars.net) == tcpProxy) {
             providerField.set(Vars.net, tcpOriginalProvider);
         }
