@@ -600,15 +600,24 @@ var alertPip = {
 var queue = new Seq();
 var prefix = "/t";
 var prevsent = 0;
-// Alert routing: false = alerts show locally only, true = alerts go to TEAM
-// chat. Only alert notifications ever broadcast — no other output does.
-var enabled = false;
-try { enabled = Core.settings.getBool("pvpnotifs-teams", false); } catch (e0) {}
+// Alert routing, 3 states: 0 = OFF (no chat alerts at all), 1 = LOCAL chat
+// only, 2 = TEAM chat. Only alert notifications ever broadcast.
+var alertMode = 1;
+try {
+    var savedMode = Core.settings.getInt("pvpnotifs-alertmode", -1);
+    if (savedMode >= 0 && savedMode <= 2) alertMode = savedMode;
+    else if (Core.settings.getBool("pvpnotifs-teams", false)) alertMode = 2;
+} catch (e0) {}
 var alertChatBtnRef = null;
-function setEnabled(v) {
-    enabled = v;
-    try { Core.settings.put("pvpnotifs-teams", enabled); } catch (e1) {}
-    try { if (alertChatBtnRef != null) alertChatBtnRef.setChecked(enabled); } catch (e2) {}
+
+function alertModeLabel() {
+    return alertMode == 2 ? "[green]TEAM CHAT" : (alertMode == 1 ? "[yellow]LOCAL" : "[red]OFF");
+}
+
+function setAlertMode(m) {
+    alertMode = m;
+    try { Core.settings.put("pvpnotifs-alertmode", alertMode); } catch (e1) {}
+    try { if (alertChatBtnRef != null) alertChatBtnRef.setChecked(alertMode == 2); } catch (e2) {}
 }
 
 Events.on(EventType.BlockDestroyEvent, cons(e => {
@@ -826,9 +835,10 @@ Events.on(EventType.ClientLoadEvent,
         tcpBtnRef = tcpBtn;
 
         var alertChatBtn = t.button(Icon.chat, Styles.clearTogglei, run(() => {
-            setEnabled(!enabled);
-        })).width(46).height(46).name("teamalerts").tooltip("alert notifications: [green]on[white] -> team chat, [gray]off[white] -> local chat only").get();
-        alertChatBtn.setChecked(enabled);
+            // cycle TEAM -> LOCAL -> OFF -> TEAM
+            setAlertMode(alertMode == 2 ? 1 : (alertMode == 1 ? 0 : 2));
+        })).width(46).height(46).name("teamalerts").tooltip("alert routing: TEAM CHAT -> LOCAL -> OFF (click cycles)").get();
+        alertChatBtn.setChecked(alertMode == 2);
         alertChatBtnRef = alertChatBtn;
 
         var updateLongFired = false;
@@ -838,6 +848,7 @@ Events.on(EventType.ClientLoadEvent,
             touchDown: function(event, x, y, pointer, button) {
                 if (button == 1 || button == 2) {
                     showUpdateConfig();
+                    try { updateBtn.setChecked(false); } catch (eU0) {}
                     return true;
                 }
                 updateLongFired = false;
@@ -856,6 +867,8 @@ Events.on(EventType.ClientLoadEvent,
                     checkForUpdates();
                 }
                 updateLongFired = false;
+                // momentary button: release the latched visual state
+                try { updateBtn.setChecked(false); } catch (eU1) {}
                 return true;
             }
         }));
@@ -1595,8 +1608,8 @@ Events.run(Trigger.update, () => {
     swSecAI = Time.nanos() - s0;
 
     if (wasCleared) {
-        var be = enabled;
-        enabled = false;
+        var bm = alertMode;
+        alertMode = 0;
         update();
         while (!queue.isEmpty()) {
             if (Version.build >= 132) {
@@ -1605,7 +1618,7 @@ Events.run(Trigger.update, () => {
                 Vars.ui.chatfrag.addMessage(queue.pop(), "[red]PvP-Alerts");
             }
         }
-        enabled = be;
+        alertMode = bm;
         wasCleared = false;
     }
 
@@ -1701,17 +1714,21 @@ Events.on(EventType.WorldLoadEvent, e => {
 
 function update() {
     if (!queue.isEmpty()) {
-        if (enabled) {
+        if (alertMode == 2) {
             if (prevsent > 120) {
                 Call.sendChatMessage(prefix + " " + queue.pop());
                 prevsent = 0;
             }
-        } else {
+        } else if (alertMode == 1) {
             if (Version.build >= 132) {
                 Vars.ui.chatfrag.addMessage("[red]PvP-Alerts: " + queue.pop());
             } else {
                 Vars.ui.chatfrag.addMessage(queue.pop(), "[red]PvP-Alerts");
             }
+        } else {
+            // OFF: drop pending alerts instead of letting the queue pile up
+            queue.clear();
+            queueDropped = 0;
         }
     }
     prevsent += Time.delta;
@@ -1810,16 +1827,20 @@ const onChat = function(sender, message) {
         var cmd = all[0];
         switch (cmd) {
             case "help":
-                print("[red]PvP-Alerts [white]commands: [green]enable, disable, wipe, items, units, prefix, turretdmg, ammo, tcp, time, popup, debug");
+                print("[red]PvP-Alerts [white]commands: [green]enable, disable, local, wipe, items, units, prefix, turretdmg, ammo, tcp, time, popup, debug");
                 print("[gray]queue: [white]" + queue.size + "/" + QUEUE_MAX + (queueDropped > 0 ? " [red](" + queueDropped + " dropped)" : ""));
                 break;
             case "enable":
-                setEnabled(true);
+                setAlertMode(2);
                 print("[green]Alerts -> team chat");
                 break;
             case "disable":
-                setEnabled(false);
-                print("[gray]Alerts -> local chat only");
+                setAlertMode(0);
+                print("[gray]Alerts off");
+                break;
+            case "local":
+                setAlertMode(1);
+                print("[yellow]Alerts -> local chat only");
                 break;
             case "prefix":
                 prefix = all[1];
@@ -2758,9 +2779,10 @@ function showCommandsDialog() {
         var tog = function(label, cmd) {
             g.button(label, function() { onChat("local", cmd); }).width(150).height(44);
         };
-        g.button("Team chat alerts: " + (enabled ? "[green]ON" : "[red]OFF"), function() {
-            onChat("local", enabled ? "disable" : "enable");
-        }).width(310).height(44).colspan(2);
+        var alertTglBtn = g.button("Alerts: " + alertModeLabel(), function() {
+            setAlertMode(alertMode == 2 ? 1 : (alertMode == 1 ? 0 : 2));
+            alertTglBtn.setText("Alerts: " + alertModeLabel());
+        }).width(310).height(44).colspan(2).get();
         g.row();
         tog("Count units", "units"); tog("Scan items", "items"); g.row();
         tog("Ammo shapes", "turretdmg"); tog("Ammo diag", "ammo"); g.row();
