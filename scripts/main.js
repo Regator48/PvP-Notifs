@@ -446,10 +446,14 @@ function registerTrackHandlers() {
     var genNames = [
         "steamGenerator", "thermalGenerator", "rtgGenerator", "thoriumReactor", "impactReactor",
         "turbineCondenser", "ventCondenser", "chemicalCombustionChamber", "pyrolysisGenerator",
-        "fluxReactor", "neutroniumReactor"
+        "fluxReactor"
     ];
     for (var gi = 0; gi < genNames.length; gi++) {
-        var gb = Blocks[genNames[gi]];
+        // NOTE: reading a missing STATIC field on a Java class THROWS in Rhino
+        // (unlike instance fields, which return undefined) — blocks renamed or
+        // missing in a build must be probed inside try/catch.
+        var gb = null;
+        try { gb = Blocks[genNames[gi]]; } catch (eG) {}
         if (gb) addTrackHandler(BlockTrackHandler.new(genNames[gi], BlockBuildTracker, gb, false, genEvent));
     }
 
@@ -1984,7 +1988,7 @@ function rebuildTechSummary(t) {
     var genBlockNames = [
         "steamGenerator", "thermalGenerator", "rtgGenerator", "thoriumReactor", "impactReactor",
         "turbineCondenser", "ventCondenser", "chemicalCombustionChamber", "pyrolysisGenerator",
-        "fluxReactor", "neutroniumReactor"
+        "fluxReactor"
     ];
     var genBlocks = [];
     for (var gbi = 0; gbi < genBlockNames.length; gbi++) {
