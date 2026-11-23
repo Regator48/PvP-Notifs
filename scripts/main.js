@@ -1034,7 +1034,11 @@ function iterateOver(iterator, func) {
 function pruneSeq(seq, keep) {
     var len = seq.size;
     for (var i = 0; i < len; i++) {
-        if (!keep.get(seq.get(i))) return seq.select(keep);
+        // keep is a plain JS function — keep.get() does not exist and threw a
+        // TypeError every frame once the seq was non-empty. That aborted the
+        // whole per-frame handler: no queue drain (no alerts), no pruning
+        // (seqs grew forever → stutter), and prevsent never advanced.
+        if (!keep(seq.get(i))) return seq.select(keep);
     }
     return seq;
 }
@@ -1778,6 +1782,9 @@ Events.on(EventType.WorldLoadEvent, e => {
 });
 
 function update() {
+    // Advance the send gate FIRST — if anything below ever throws, the gate
+    // still progresses and alerts are not permanently stalled.
+    prevsent += Time.delta;
     if (!queue.isEmpty()) {
         if (alertMode == 2) {
             if (prevsent > 120) {
@@ -1796,7 +1803,6 @@ function update() {
             queueDropped = 0;
         }
     }
-    prevsent += Time.delta;
 
     trackers.each(tickTracker);
     trackers = pruneSeq(trackers, trackerPending);
