@@ -19,10 +19,14 @@ var drawPlayerMouse = cons((e) => {
         var y = e.mouseY;
         if (color && x && y) {
             Drawf.circles(x, y, 6, color);
+            // Cap dash segments: a far-away mouse used to emit 500+ segments
+            // per line, x2 lines, x every player, every frame (vertex/GIP load).
+            var segs = Math.round(unit.dst(x, y) / 8);
+            if (segs > 120) segs = 120;
             Lines.stroke(3, Pal.gray);
-            Lines.dashLine(unit.x, unit.y, x, y, Math.round(unit.dst(x, y) / 8));
+            Lines.dashLine(unit.x, unit.y, x, y, segs);
             Lines.stroke(1, color);
-            Lines.dashLine(unit.x, unit.y, x, y, Math.round(unit.dst(x, y) / 8));
+            Lines.dashLine(unit.x, unit.y, x, y, segs);
         }
     }
 });

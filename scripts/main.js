@@ -1514,6 +1514,7 @@ var swPrevPlaying = false;
 var swUpdateNanos = 0;
 var swDrawNanos = 0;
 var swSecAI = 0, swSecTrack = 0, swSecPower = 0, swSecTrails = 0;
+var swTrailTick = 0;
 
 function swMs(ns) { return Math.round(ns / 1e5) / 10; }
 
@@ -1626,16 +1627,27 @@ Events.run(Trigger.update, () => {
     powerbal = 0;
 
     s0 = Time.nanos();
-    iterateOver(Vars.indexer.getFlagged(Vars.player.team(), BlockFlag.generator).iterator(), consumePowerNode);
-    iterateOver(Vars.indexer.getFlagged(Vars.player.team(), BlockFlag.reactor).iterator(), consumePowerNode);
+    // GUARD: Trigger.update also fires in the menu, where Vars.player is null —
+    // the unguarded call threw + was caught EVERY FRAME (60 exceptions/s of
+    // Rhino stack capture = constant GC churn before you even load a map).
+    if (Vars.player != null) {
+        iterateOver(Vars.indexer.getFlagged(Vars.player.team(), BlockFlag.generator).iterator(), consumePowerNode);
+        iterateOver(Vars.indexer.getFlagged(Vars.player.team(), BlockFlag.reactor).iterator(), consumePowerNode);
+    }
     swSecPower = Time.nanos() - s0;
 
     s0 = Time.nanos();
     // Null trails on all units every frame (smoke removal)
+    // Trail nulling doesn't need 60Hz — every 6th frame (10Hz) is visually
+    // identical and cuts this per-frame JS pass on every unit by 6x.
     if (showTurretDmg && ammoApplied) {
-        try {
-            Groups.unit.each(clearUnitTrail);
-        } catch (e) {}
+        swTrailTick++;
+        if (swTrailTick >= 6) {
+            swTrailTick = 0;
+            try {
+                Groups.unit.each(clearUnitTrail);
+            } catch (e) {}
+        }
     }
     swSecTrails = Time.nanos() - s0;
 
@@ -1980,6 +1992,21 @@ function rebuildTechSummary(t) {
         if (gbx) genBlocks.push(gbx);
     }
 
+    // Perf: id-indexed lookup tables, built once. The old scan ran ~40 object
+    // comparisons per building through Rhino; this makes it 3 array lookups.
+    // (This scan runs every ~8s while the summary panel is open, so on a big
+    // base the nested comparisons were a periodic multi-hundred-ms freeze.)
+    var matLookup = [];
+    for (var lmi = 0; lmi < materialBlocks.length; lmi++) {
+        for (var lbi = 0; lbi < materialBlocks[lmi].blocks.length; lbi++) {
+            matLookup[materialBlocks[lmi].blocks[lbi].id] = materialBlocks[lmi].item.name;
+        }
+    }
+    var keyLookup = [];
+    for (var lki = 0; lki < keyBlocks.length; lki++) keyLookup[keyBlocks[lki].id] = keyBlocks[lki];
+    var genLookup = [];
+    for (var lgi = 0; lgi < genBlocks.length; lgi++) genLookup[genBlocks[lgi].id] = genBlocks[lgi];
+
     var teamData = {};
     t.clear();
 
@@ -2000,23 +2027,13 @@ function rebuildTechSummary(t) {
             var constructing = (b instanceof ConstructBlock.ConstructBuild);
             var block = constructing ? getConstructingBlock(b.tile) : b.block;
             if (!block || block == Blocks.air) continue;
-            for (var mi = 0; mi < materialBlocks.length; mi++) {
-                for (var bi = 0; bi < materialBlocks[mi].blocks.length; bi++) {
-                    if (block == materialBlocks[mi].blocks[bi]) {
-                        teamData[tid].materials[materialBlocks[mi].item.name] = constructing ? "building" : "has";
-                    }
-                }
-            }
-            for (var ki = 0; ki < keyBlocks.length; ki++) {
-                if (block == keyBlocks[ki]) {
-                    teamData[tid].keyBuildings[block.name] = constructing ? "building" : "has";
-                }
-            }
-            for (var gi2 = 0; gi2 < genBlocks.length; gi2++) {
-                if (block == genBlocks[gi2]) {
-                    teamData[tid].gens[genBlocks[gi2].name] = constructing ? "building" : "has";
-                }
-            }
+            var scanState = constructing ? "building" : "has";
+            var matKey = matLookup[block.id];
+            if (matKey != null) teamData[tid].materials[matKey] = scanState;
+            var kblock = keyLookup[block.id];
+            if (kblock != null) teamData[tid].keyBuildings[kblock.name] = scanState;
+            var gblock = genLookup[block.id];
+            if (gblock != null) teamData[tid].gens[gblock.name] = scanState;
         }
     } catch (err) {}
 
