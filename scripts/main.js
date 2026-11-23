@@ -96,7 +96,12 @@ var pvpCmdRegistered = false;
 var QUEUE_MAX = 60;
 var queueDropped = 0;
 
+// Diag counters — cheap numbers, read by /pvp diag. They show whether events
+// reach us, whether alerts are produced, and whether anything leaves the queue.
+var diagBuildBegin = 0, diagTileChange = 0, diagEnqueued = 0, diagFired = 0;
+
 function enqueue(msg) {
+    diagEnqueued++;
     if (queue.size >= QUEUE_MAX) {
         queueDropped++;
         return;
@@ -221,6 +226,7 @@ const BlockTracker = {
         }
     },
     displayAlert(team, block, tile) {
+        diagFired++;
         recordTech(team, block);
         if (!this.customText) {
             eventLogBlock(team, block, tile);
@@ -1837,6 +1843,7 @@ function clear() {
 }
 
 Events.on(EventType.BlockBuildBeginEvent, e => {
+    diagBuildBegin++;
     var team = e.team;
     if (!e.breaking && e.team != Vars.player.team()) {
         getTeamAch(e.team).processBuildingEvent(e.tile);
@@ -1855,6 +1862,7 @@ Events.on(EventType.BlockBuildBeginEvent, e => {
 // constructFinish call when the finished building materializes, so a missed
 // begin still produces its alert (the per-team milestone dedupes doubles).
 Events.on(EventType.TileChangeEvent, e => {
+    diagTileChange++;
     try {
         var tile = e.tile;
         if (!tile || !tile.build) return;
@@ -1886,7 +1894,7 @@ const onChat = function(sender, message) {
         var cmd = all[0];
         switch (cmd) {
             case "help":
-                print("[red]PvP-Alerts [white]commands: [green]enable, disable, local, wipe, items, units, prefix, turretdmg, ammo, tcp, time, popup, debug");
+                print("[red]PvP-Alerts [white]commands: [green]enable, disable, local, diag, wipe, items, units, prefix, turretdmg, ammo, tcp, time, popup, debug");
                 print("[gray]queue: [white]" + queue.size + "/" + QUEUE_MAX + (queueDropped > 0 ? " [red](" + queueDropped + " dropped)" : ""));
                 break;
             case "enable":
@@ -1900,6 +1908,9 @@ const onChat = function(sender, message) {
             case "local":
                 setAlertMode(1);
                 print("[yellow]Alerts -> local chat only");
+                break;
+            case "diag":
+                printDiag();
                 break;
             case "prefix":
                 prefix = all[1];
@@ -2836,6 +2847,36 @@ function applyZipBytes(bytes) {
         }
 }
 
+// Prints the state of every link in the alert chain to local chat — tells us
+// exactly where alerts stop when they "don't show".
+function printDiag() {
+    var say = function(s) {
+        try { Vars.ui.chatfrag.addMessage("[cyan]" + s); } catch (e) { print(s); }
+    };
+    try {
+        say("-- PvP-Alerts diag --");
+        say("version " + localModVersion() + " | loaded: yes");
+        say("alertMode " + alertMode + " (" + alertModeLabel() + ") | popups " + showPopup + " | debug " + pvpDebug);
+        say("queue " + queue.size + "/" + QUEUE_MAX + " (dropped " + queueDropped + ")");
+        say("trackers " + trackers.size + " | handlers " + (blocktrackhandle ? Object.keys(blocktrackhandle).length : 0));
+        say("events: buildBegin " + diagBuildBegin + " | tileChange " + diagTileChange + " | enqueued " + diagEnqueued + " | fired " + diagFired);
+        try {
+            if (teams) {
+                var ks = Object.keys(teams);
+                for (var i = 0; i < ks.length; i++) {
+                    var ach = teams[ks[i]];
+                    var tn = (ach && ach.tech) ? Object.keys(ach.tech).length : 0;
+                    say("team " + ks[i] + ": techs " + tn);
+                }
+            } else {
+                say("teams: (none yet — no alerts fired this match)");
+            }
+        } catch (e2) {}
+    } catch (e0) {
+        try { print("diag failed: " + e0); } catch (e1) {}
+    }
+}
+
 // All mod commands as clickable buttons — bypasses chat entirely (slash
 // commands and bare words both depend on chat routing that varies by build).
 function showCommandsDialog() {
@@ -2858,6 +2899,8 @@ function showCommandsDialog() {
         tog("Force TCP", "tcp"); tog("Timer show/hide", "time"); g.row();
         tog("Popups", "popup"); tog("Debug logs", "debug"); g.row();
         g.button("Tech summary", function() { d.hide(); showTechSummary(); }).width(310).height(44).colspan(2);
+        g.row();
+        g.button("Diagnostics", function() { printDiag(); }).width(310).height(44).colspan(2);
         g.row();
         g.button("[scarlet]Wipe alerts", function() { onChat("local", "wipe"); }).width(310).height(44).colspan(2);
         g.row();
