@@ -803,9 +803,11 @@ Events.on(EventType.ClientLoadEvent,
             }
         }));
 
-        t.button(Icon.units, style, run(() => {
+        var techBtn = t.button(Icon.units, style, run(() => {
             showTechSummary();
-        })).width(46).height(46).name("techsummary").tooltip("enemy tech summary");
+        })).width(46).height(46).name("techsummary").tooltip("enemy tech summary").get();
+        techBtnRef = techBtn;
+        try { techBtn.setChecked(techSummaryTable != null); } catch (eTB) {}
 
         var dmgBtn = t.button(Icon.star, Styles.clearTogglei, run(() => {
             pvplog("STAR PRESSED! was=" + showTurretDmg);
@@ -843,7 +845,9 @@ Events.on(EventType.ClientLoadEvent,
         // Text label (not an icon): TEAM/LOCAL/OFF must be visually distinct —
         // the icon version only showed checked for TEAM and made LOCAL and OFF
         // look identical, which read as "off isn't working".
-        var alertChatBtn = t.button("", Styles.clearTogglei, run(() => {
+        // NOTE: plain button(String, Runnable) — the (String, Drawable, Runnable)
+        // overload does not resolve on all builds ("Can't find method" crash).
+        var alertChatBtn = t.button("", run(() => {
             // cycle TEAM -> LOCAL -> OFF -> TEAM
             setAlertMode(alertMode == 2 ? 1 : (alertMode == 1 ? 0 : 2));
         })).width(64).height(46).name("teamalerts").tooltip("alert routing: TEAM -> LOCAL -> OFF (click cycles; OFF silences chat alerts AND popups)").get();
@@ -2231,10 +2235,18 @@ function rebuildTechSummary(t) {
     }
 }
 
+// Keeps the strip's tech-summary button in sync with the real panel state —
+// the panel can also be opened/closed from the commands dialog.
+var techBtnRef = null;
+function syncTechBtn() {
+    try { if (techBtnRef != null) techBtnRef.setChecked(techSummaryTable != null); } catch (e0) {}
+}
+
 function showTechSummary() {
     if (techSummaryTable) {
         techSummaryTable.remove();
         techSummaryTable = null;
+        syncTechBtn();
         return;
     }
 
@@ -2262,6 +2274,7 @@ function showTechSummary() {
         if (Vars.state.isMenu()) {
             c.remove();
             techSummaryTable = null;
+            syncTechBtn();
             return;
         }
         techSummaryAcc += Time.delta;
@@ -2276,6 +2289,7 @@ function showTechSummary() {
     place();
     Vars.ui.hudGroup.addChild(c);
     techSummaryTable = c;
+    syncTechBtn();
 }
 function jsonField(json, key) {
     var idx = json.indexOf("\"" + key + "\"");
