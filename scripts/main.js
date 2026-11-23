@@ -850,10 +850,12 @@ Events.on(EventType.ClientLoadEvent,
         var alertChatBtn = t.button("", run(() => {
             // cycle TEAM -> LOCAL -> OFF -> TEAM
             setAlertMode(alertMode == 2 ? 1 : (alertMode == 1 ? 0 : 2));
-        })).width(64).height(46).name("teamalerts").tooltip("alert routing: TEAM -> LOCAL -> OFF (click cycles; OFF silences chat alerts AND popups)").get();
+            try { print("[cyan]Alerts: " + alertModeLabel()); } catch (eAT) {}
+        })).width(90).height(46).name("teamalerts").tooltip("alert routing: TEAM -> LOCAL -> OFF (click cycles; OFF silences chat alerts AND popups)").get();
         try {
             alertChatBtn.setText(alertModeLabel());
-            alertChatBtn.getLabel().setFontScale(0.85);
+            alertChatBtn.getLabel().setFontScale(0.8);
+            alertChatBtn.getLabel().setWrap(false); // one line — it wrapped in 64px
         } catch (eAL) {}
         alertChatBtn.setChecked(alertMode == 2);
         alertChatBtnRef = alertChatBtn;
@@ -1482,7 +1484,11 @@ function tcpEnable() {
                 return method.invoke(provider, args);
             }
         });
-        var ifaces = java.lang.reflect.Array.newInstance(iface, 1);
+        // Class[] (NOT NetProvider[]): Array.newInstance(iface, 1) builds an
+        // array of the interface type, and storing a Class in it throws
+        // "Cannot convert interface ... to ..." — the element type must be Class.
+        var classCls = java.lang.Class.forName("java.lang.Class");
+        var ifaces = java.lang.reflect.Array.newInstance(classCls, 1);
         ifaces[0] = iface;
         tcpProxy = java.lang.reflect.Proxy.newProxyInstance(iface.getClassLoader(), ifaces, handler);
         tcpOriginalProvider = provider;
