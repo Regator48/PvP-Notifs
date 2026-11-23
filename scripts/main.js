@@ -5,25 +5,12 @@ const jot = require("jotfunction");
 var pvpDebug = false;
 try { pvpDebug = Core.settings.getBool("pvpnotifs-debug", false); } catch(e) {}
 
-// Debug channel broadcast: when on, [PvP] debug lines (stutter reports, popup
-// failures) are ALSO sent to team chat so teammates see them. Throttled hard —
-// servers kick chat spammers.
-var debugTeam = false;
-try { debugTeam = Core.settings.getBool("pvpnotifs-debugteam", false); } catch(e) {}
-var lastTeamDebugMs = 0;
-function debugTeamMsg(msg) {
-    if (!debugTeam) return;
-    var now = Time.millis();
-    if (now - lastTeamDebugMs < 2000) return; // max 1 team msg per 2s
-    lastTeamDebugMs = now;
-    try { Call.sendChatMessage(prefix + " [yellow][PvP] " + msg); } catch (e0) {}
-}
-
+// Debug output is LOCAL ONLY — chatfrag + toast. It never touches team chat
+// (only alert notifications may broadcast, and only via the Team Alerts toggle).
 function pvplog(msg) {
     if (!pvpDebug) return;
     try { Vars.ui.chatfrag.addMessage("[yellow][PvP] " + msg); } catch(e) {}
     try { Vars.ui.showInfoToast(msg, 4); } catch(e) {}
-    debugTeamMsg(msg);
 }
 
 global.alerts = {};
@@ -613,7 +600,16 @@ var alertPip = {
 var queue = new Seq();
 var prefix = "/t";
 var prevsent = 0;
+// Alert routing: false = alerts show locally only, true = alerts go to TEAM
+// chat. Only alert notifications ever broadcast — no other output does.
 var enabled = false;
+try { enabled = Core.settings.getBool("pvpnotifs-teams", false); } catch (e0) {}
+var alertChatBtnRef = null;
+function setEnabled(v) {
+    enabled = v;
+    try { Core.settings.put("pvpnotifs-teams", enabled); } catch (e1) {}
+    try { if (alertChatBtnRef != null) alertChatBtnRef.setChecked(enabled); } catch (e2) {}
+}
 
 Events.on(EventType.BlockDestroyEvent, cons(e => {
     var tile = e.tile;
@@ -828,6 +824,12 @@ Events.on(EventType.ClientLoadEvent,
         })).width(46).height(46).name("tcp").tooltip("force TCP: sends all client->server packets via TCP instead of UDP (can fix packet loss / error snapshots)").get();
         tcpBtn.setChecked(tcpActive);
         tcpBtnRef = tcpBtn;
+
+        var alertChatBtn = t.button(Icon.chat, Styles.clearTogglei, run(() => {
+            setEnabled(!enabled);
+        })).width(46).height(46).name("teamalerts").tooltip("alert notifications: [green]on[white] -> team chat, [gray]off[white] -> local chat only").get();
+        alertChatBtn.setChecked(enabled);
+        alertChatBtnRef = alertChatBtn;
 
         var updateLongFired = false;
         var updateTimer = null;
@@ -1535,7 +1537,6 @@ function swReport(gapMs) {
     Log.warn("PvP-Alerts: " + line);
     if (pvpDebug) {
         try { Vars.ui.chatfrag.addMessage("[scarlet][PvP] " + line); } catch (e2) {}
-        debugTeamMsg(line);
     }
 }
 
@@ -1809,16 +1810,16 @@ const onChat = function(sender, message) {
         var cmd = all[0];
         switch (cmd) {
             case "help":
-                print("[red]PvP-Alerts [white]commands: [green]enable, disable, wipe, items, units, prefix, turretdmg, ammo, tcp, time, popup, debug, dteam");
+                print("[red]PvP-Alerts [white]commands: [green]enable, disable, wipe, items, units, prefix, turretdmg, ammo, tcp, time, popup, debug");
                 print("[gray]queue: [white]" + queue.size + "/" + QUEUE_MAX + (queueDropped > 0 ? " [red](" + queueDropped + " dropped)" : ""));
                 break;
             case "enable":
-                enabled = true;
-                print("[green]PvP-Alerts enabled");
+                setEnabled(true);
+                print("[green]Alerts -> team chat");
                 break;
             case "disable":
-                enabled = false;
-                print("[red]Disabled PvP-alerts");
+                setEnabled(false);
+                print("[gray]Alerts -> local chat only");
                 break;
             case "prefix":
                 prefix = all[1];
@@ -1860,11 +1861,7 @@ const onChat = function(sender, message) {
                 try { Core.settings.put("pvpnotifs-showpopup", showPopup); } catch (eP1) {}
                 print("[cyan]Alert popups " + (showPopup ? "[green]on" : "[red]off"));
                 break;
-            case "dteam":
-                debugTeam = !debugTeam;
-                try { Core.settings.put("pvpnotifs-debugteam", debugTeam); } catch (eD1) {}
-                print("[cyan]Debug->team chat " + (debugTeam ? "[green]on[gray] (max 1 msg/2s)" : "[red]off"));
-                break;
+
             case "units":
 
                 var teamUnits = {};
@@ -2761,13 +2758,17 @@ function showCommandsDialog() {
         var tog = function(label, cmd) {
             g.button(label, function() { onChat("local", cmd); }).width(150).height(44);
         };
-        tog("Alerts on", "enable"); tog("Alerts off", "disable"); g.row();
+        g.button("Team chat alerts: " + (enabled ? "[green]ON" : "[red]OFF"), function() {
+            onChat("local", enabled ? "disable" : "enable");
+        }).width(310).height(44).colspan(2);
+        g.row();
         tog("Count units", "units"); tog("Scan items", "items"); g.row();
         tog("Ammo shapes", "turretdmg"); tog("Ammo diag", "ammo"); g.row();
         tog("Force TCP", "tcp"); tog("Timer show/hide", "time"); g.row();
         tog("Popups", "popup"); tog("Debug logs", "debug"); g.row();
-        tog("Debug->team", "dteam"); g.button("Tech summary", function() { d.hide(); showTechSummary(); }).width(150).height(44); g.row();
-        g.button("[scarlet]Wipe alerts", function() { onChat("local", "wipe"); }).width(150).height(44);
+        g.button("Tech summary", function() { d.hide(); showTechSummary(); }).width(310).height(44).colspan(2);
+        g.row();
+        g.button("[scarlet]Wipe alerts", function() { onChat("local", "wipe"); }).width(310).height(44).colspan(2);
         g.row();
         g.add("[gray]Chat alt: [white]/pvp <command>[gray]  (feedback prints in the command bar)").pad(6).colspan(2).row();
         d.show();
