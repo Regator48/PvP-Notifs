@@ -609,11 +609,12 @@ var prefix = "/t";
 var prevsent = 0;
 // Alert routing, 3 states: 0 = OFF (no chat alerts at all), 1 = LOCAL chat
 // only, 2 = TEAM chat. Only alert notifications ever broadcast.
+// PRESET = LOCAL. The old "pvpnotifs-teams" migration was removed — it could
+// silently flip a fresh install to TEAM chat.
 var alertMode = 1;
 try {
     var savedMode = Core.settings.getInt("pvpnotifs-alertmode", -1);
     if (savedMode >= 0 && savedMode <= 2) alertMode = savedMode;
-    else if (Core.settings.getBool("pvpnotifs-teams", false)) alertMode = 2;
 } catch (e0) {}
 var alertChatBtnRef = null;
 
