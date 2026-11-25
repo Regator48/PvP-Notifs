@@ -2387,6 +2387,25 @@ function getGiteeZipUrl() {
     return "https://gitee.com/" + g + "/repository/archive/" + getBranch() + ".zip";
 }
 
+// Tries a list of URLs in order for small text payloads (mod.json). Used by the
+// basic-mode update check so a blocked GitHub API/raw host doesn't dead-end —
+// jsDelivr serves the same repo content and is usually reachable.
+function httpGetFirst(urls, onResult, onError) {
+    var tryOne = function(i) {
+        if (i >= urls.length) { onError(new Error("all sources failed")); return; }
+        var u = urls[i];
+        if (!u || u.length == 0) { tryOne(i + 1); return; }
+        Log.info("PvP-Alerts: update check trying " + u);
+        Http.get(u).header("User-Agent", "PvP-Notifs").error(function(e) {
+            Log.warn("PvP-Alerts: update source failed: " + u);
+            tryOne(i + 1);
+        }).submit(function(response) {
+            onResult(response, u);
+        });
+    };
+    tryOne(0);
+}
+
 function httpGetFallback(url, fallbackUrl, onResult, onError) {
     Http.get(url).header("User-Agent", "PvP-Notifs").error(function(e) {
         if (fallbackUrl && fallbackUrl.length > 0) {
@@ -3057,12 +3076,21 @@ function checkForUpdates() {
     }, function(e3) {
         // Fallback when the GitHub API is unreachable (e.g. GFW): raw mod.json compare + browser.
         Log.warn("Releases API failed, falling back to raw version check", e3);
-        httpGetFallback(getRawUrl(), getGiteeRawUrl(), function(response) {
+        var srcs = [];
+        try {
+            var cRaw = Core.settings.getString("pvpnotifs-rawurl", "").trim();
+            if (cRaw.length > 0) srcs.push(cRaw);
+        } catch (eR) {}
+        srcs.push("https://cdn.jsdelivr.net/gh/" + repo + "@" + getBranch() + "/mod.json");
+        srcs.push(getGiteeRawUrl());
+        srcs.push(getRawUrl());
+        httpGetFirst(srcs, function(response, srcUrl) {
             var latestVersion = jsonField(response.getResultAsString(), "version");
             Core.app.post(function() {
                 var dialog = new BaseDialog("Update Check");
                 dialog.addCloseButton();
                 dialog.cont.add("[gray]Releases API unreachable — basic mode.").pad(5).row();
+                try { dialog.cont.add("[darkgray]source: " + ("" + srcUrl).replace("https://", "").split("/")[0]).pad(2).row(); } catch (eS) {}
                 dialog.cont.add("PvP-Notifs v" + currentVersion).pad(10).row();
                 if (latestVersion != null) {
                     dialog.cont.add("Latest: v" + latestVersion).pad(10).row();

@@ -1,10 +1,11 @@
 {
     "name": "PvP-Alerts",
-    "displayName": "PvP Alerts v159",
+    "displayName": "PvP Alerts",
     "author": "Xelo, JohnTing, Altair",
     "description": "PvP alerts, enemy production tracking, tech tree alerts, turrets range, /sync, ammo shape sprites",
-    "version": "2.0.1",
+    "version": "2.0.2",
     "minGameVersion": 159,
+    "repo": "Regator48/PvP-Notifs",
     "java": false,
     "hidden": true,
     "internal": false
